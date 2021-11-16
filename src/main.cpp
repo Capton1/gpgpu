@@ -1,5 +1,5 @@
 #include <CLI/CLI.hpp>
-
+#include <opencv2/opencv.hpp>
 
 int main(int argc, char** argv) {
     (void) argc;
