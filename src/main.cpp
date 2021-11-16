@@ -1,5 +1,8 @@
 #include <CLI/CLI.hpp>
 #include <opencv2/opencv.hpp>
+#include <iostream>
+
+
 
 int main(int argc, char** argv) {
     (void) argc;
@@ -23,4 +26,14 @@ int main(int argc, char** argv) {
         printf("GPU\n");
     }
 
+    cv::Mat img_grayscale = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
+
+    // Check for failure
+    if (img_grayscale.empty()) 
+    {
+        std::cout << "Could not open or find the image" << std::endl;
+        return -1;
+    }
+
+    cv::imwrite("../output/grayscale.jpg", img_grayscale);
 }
