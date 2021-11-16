@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
     int patchs_y = s.height/pool_size;
     int patchs_x = s.width/pool_size;
     std::cout << patchs_y << " " << patchs_x << std::endl;
-    cv::Mat response(cv::Size(patchs_y, patchs_x), CV_64FC1, cv::Scalar(0));
+    cv::Mat response(cv::Size(patchs_y, patchs_x), CV_8U, cv::Scalar(0));
 
     
 
@@ -75,9 +75,9 @@ int main(int argc, char** argv) {
                     sum += sobx1.at<uint8_t>(i, j);
                 }
             }
-            float avg = (1.0*sum)/(pool_size*pool_size);
+            float avg = sum/(pool_size*pool_size);
             //std::cout << avg << std::endl;
-            response.at<float>(ii, jj) = avg;
+            response.at<uint8_t>(ii, jj) = avg;
         }
     }
     
