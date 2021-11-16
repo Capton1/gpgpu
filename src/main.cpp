@@ -8,7 +8,7 @@ void gpool(cv::Mat src, cv::Mat &dst, int pool_size) {
     cv::Size s = src.size();
     int patchs_y = s.height/pool_size;
     int patchs_x = s.width/pool_size;
-    dst.create(cv::Size(patchs_y, patchs_x), CV_8U);//, cv::Scalar(0));
+    dst.create(cv::Size(patchs_y, patchs_x), CV_8U);
 
     for (int ii = 0; ii < patchs_y; ii++) {
         for (int jj = 0; jj < patchs_x; jj++) {
@@ -72,6 +72,31 @@ int main(int argc, char** argv) {
     int pool_size = 31;
     cv::Mat pool_sobx1;
     gpool(sobx1, pool_sobx1, pool_size);
-    
     cv::imwrite("../output/pool_sobx1.jpg", pool_sobx1);
+
+    cv::Mat pool_soby1;
+    gpool(soby1, pool_soby1, pool_size);
+    cv::imwrite("../output/pool_soby1.jpg", pool_soby1);
+
+    // since all pixels are unsigned, values < 0 are replaced by 0
+    cv::Mat resp1 = pool_sobx1 - pool_soby1;
+    cv::imwrite("../output/resp1.jpg", resp1);
+
+    /*se_size = postproc_size
+    se = np.zeros((se_size,se_size), dtype=np.uint8)
+    se[se_size//2-1:se_size//2+2,:] = 1
+
+    resp1 = cv2.morphologyEx(np.uint8(resp1), cv2.MORPH_CLOSE, se)*/
+
+    int postproc_size = 5;
+    cv::Mat se(cv::Size(postproc_size, postproc_size), CV_8U, cv::Scalar(0));
+    for (int i = postproc_size/2 - 1; i < postproc_size/2 + 2; i++) {
+        for (int j = 0; j < postproc_size; j++) {
+            se.at<uint8_t>(i, j) = 1;
+        }
+    }
+
+    cv::Mat resp1_postproc;
+    morphologyEx(resp1, resp1_postproc, cv::MORPH_CLOSE, se);
+    cv::imwrite("../output/resp1_postproc.jpg", resp1_postproc);
 }
