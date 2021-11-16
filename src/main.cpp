@@ -36,4 +36,15 @@ int main(int argc, char** argv) {
     }
 
     cv::imwrite("../output/grayscale.jpg", img_grayscale);
+
+
+    // SobelX
+    cv::Mat sobx1;
+    cv::Sobel(img_grayscale, sobx1, -1, 1, 0);
+    cv::imwrite("../output/sobelx.jpg", sobx1);
+
+    // SobelY
+    cv::Mat soby1;
+    cv::Sobel(img_grayscale, soby1, -1, 0, 1);
+    cv::imwrite("../output/sobely.jpg", soby1);
 }
