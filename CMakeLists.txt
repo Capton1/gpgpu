@@ -22,7 +22,7 @@ set("OpenCV_DIR" "/usr/share/OpenCV")
 find_package(OpenCV REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 FetchContent_MakeAvailable(CLI11)
-add_executable(main src/main.cpp)
+add_executable(main src/main.cpp src/cpu.cpp)
 target_compile_features(main PUBLIC cxx_std_17)
 target_link_libraries(main PRIVATE CLI11::CLI11 ${OpenCV_LIBS})
 
