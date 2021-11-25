@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
 
     unsigned char *buffer = img_vec.data();
 
-    sobel_filter(buffer, img.rows, img.cols, img.rows);
+    sobel_filter(buffer, img.cols, img.rows, img.cols);
 
     cv::Mat output = cv::Mat(img.rows, img.cols, CV_8U, buffer);
     cv::imwrite("../output_gpu/test.jpg", output);

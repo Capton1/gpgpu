@@ -12,10 +12,12 @@ __global__ void compute_filter(const unsigned char* in, unsigned char *out, int 
   int sum = 0;
   for (int kx = -r; kx <= r; kx++) {
       for (int ky = -r; ky <= r; ky++) {
-          sum += in[(y + ky) * sIn + (x + kx)];
+          sum += in[((y + ky) * sIn) + (x + kx)];
       }
   }
-  out[x + y * sOut] = sum / ((2*r+1) * (2*r+1));
+  float denum = width * width + height * height;
+  float    v       = (x * x + y * y) / denum;
+  out[x + y * sOut] = v * 255;//sum / ((2*r+1) * (2*r+1));
 }
 
 void sobel_filter(unsigned char* buffer, int width, int height, int stride) {
@@ -47,7 +49,7 @@ void sobel_filter(unsigned char* buffer, int width, int height, int stride) {
 
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
-        compute_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, 1, pitchIn, pitchOut);
+        compute_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, 0, pitchIn, pitchOut);
         cudaDeviceSynchronize();
 
         if (cudaPeekAtLastError())
@@ -56,7 +58,7 @@ void sobel_filter(unsigned char* buffer, int width, int height, int stride) {
     }
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(buffer, stride, devOut, pitchOut, width, height, cudaMemcpyDeviceToHost);
+    rc = cudaMemcpy2D(buffer, stride, devOut, pitchOut, width * sizeof(char), height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy buffer back to memory");
 }
