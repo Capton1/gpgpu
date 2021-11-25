@@ -41,22 +41,22 @@ int main(int argc, char** argv) {
 
     unsigned char *buffer = img_vec.data();
 
-    float *sobel_x = (float*)calloc(width * height, sizeof(float));
-    sobel_filter(buffer, sobel_x, width, height, stride * sizeof(char), 'x');
-    cv::Mat sobelx = cv::Mat(height, width, CV_32FC1, sobel_x);
+    uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
+    sobel_filter(buffer, sobel_x, width, height, stride * sizeof(uint8_t), 'x');
+    cv::Mat sobelx = cv::Mat(height, width, CV_8U, sobel_x);
     cv::imwrite("../output_gpu/sobelx.jpg", sobelx);
 
-    float *sobel_y = (float*)calloc(width * height, sizeof(float));
-    sobel_filter(buffer, sobel_y, width, height, stride * sizeof(char), 'y');
-    cv::Mat sobely = cv::Mat(height, width, CV_32FC1, sobel_y);
+    uint8_t *sobel_y = (uint8_t*)calloc(width * height, sizeof(uint8_t));
+    sobel_filter(buffer, sobel_y, width, height, stride * sizeof(uint8_t), 'y');
+    cv::Mat sobely = cv::Mat(height, width, CV_8U, sobel_y);
     cv::imwrite("../output_gpu/sobely.jpg", sobely);
 
     int pool_size = 31;
     int patchs_y = height/pool_size;
     int patchs_x = width/pool_size;
     std::cout << patchs_x << " : " << patchs_y << std::endl;
-    float *pool_sobel_x = (float*)calloc(patchs_x * patchs_y, sizeof(float));
-    average_pooling(sobel_x, pool_sobel_x, width, height, stride * sizeof(float), pool_size);
-    cv::Mat pool_sobelx = cv::Mat(patchs_y, patchs_x, CV_32FC1, pool_sobel_x);
+    uint8_t *pool_sobel_x = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
+    average_pooling(sobel_x, pool_sobel_x, width, height, stride * sizeof(uint8_t), pool_size);
+    cv::Mat pool_sobelx = cv::Mat(patchs_y, patchs_x, CV_8U, pool_sobel_x);
     cv::imwrite("../output_gpu/pool_sobelx.jpg", pool_sobelx);
 }

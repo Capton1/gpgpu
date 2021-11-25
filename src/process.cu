@@ -1,10 +1,10 @@
 #include "process.hpp"
 #include <stdio.h>
 
-__global__ void sobel_x_filter(const unsigned char* in, float *out, int width,
-                            int height, int pitch) {
+__global__ void sobel_x_filter(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
 
-    float kernel[3][3] = {{-1.0, 0.0, 1.0}, {-2.0, 0.0, 2.0}, {-1.0, 0.0, 1.0}};
+    int kernel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     int r = 1;
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -13,21 +13,21 @@ __global__ void sobel_x_filter(const unsigned char* in, float *out, int width,
     if (x < r || x >= width - r) return;
     if (y < r || y >= height - r) return;
 
-    float sum = 0.0;
+    int sum = 0.0;
     for (int kx = -r; kx <= r; kx++) {
         for (int ky = -r; ky <= r; ky++) {
-            float pixel = in[((y + ky) * pitch) + (x + kx)];
+            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
             sum += kernel[ky+r][kx+r] * pixel;
         }
     }
 
-    out[x + y * pitch] = (sum > 0) ? sum : -sum;
+    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
 }
 
-__global__ void sobel_y_filter(const unsigned char* in, float *out, int width,
-                            int height, int pitch) {
+__global__ void sobel_y_filter(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
 
-    float kernel[3][3] = {{1.0, 2.0, 1.0}, {0.0, 0.0, 0.0}, {-1.0, -2.0, -1.0}};
+    int kernel[3][3] = {{1, 2, 1}, {0, 0, 0}, {-1, -2, -1}};
     int r = 1;
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -36,26 +36,26 @@ __global__ void sobel_y_filter(const unsigned char* in, float *out, int width,
     if (x < r || x >= width - r) return;
     if (y < r || y >= height - r) return;
 
-    float sum = 0.0;
+    int sum = 0;
     for (int kx = -r; kx <= r; kx++) {
         for (int ky = -r; ky <= r; ky++) {
-            float pixel = in[((y + ky) * pitch) + (x + kx)];
+            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
             sum += kernel[ky+r][kx+r] * pixel;
         }
     }
 
-    out[x + y * pitch] = (sum > 0) ? sum : -sum;
+    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
 }
 
-void sobel_filter(unsigned char* buffer, float *output, int width, int height, int stride, char type) {
+void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height, int stride, char type) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
-    unsigned char*  devIn;
-    float* devOut;
+    uint8_t*  devIn;
+    uint8_t* devOut;
     size_t pitchIn, pitchOut;
 
-    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(char), height);
+    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
     if (rc)
         printf("Fail buffer allocation\n");
 
@@ -63,7 +63,7 @@ void sobel_filter(unsigned char* buffer, float *output, int width, int height, i
     if (rc)
         printf("Unable to copy buffer back to memory\n");
 
-    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(float), height);
+    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
     if (rc)
         printf("Fail buffer allocation\n");
 
@@ -75,9 +75,9 @@ void sobel_filter(unsigned char* buffer, float *output, int width, int height, i
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
         if (type == 'x')
-            sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn);
+            sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
         else
-            sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn);
+            sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
         cudaDeviceSynchronize();
 
         if (cudaPeekAtLastError())
@@ -86,14 +86,14 @@ void sobel_filter(unsigned char* buffer, float *output, int width, int height, i
     }
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride * sizeof(float), devOut, pitchOut,
-                        width * sizeof(float), height, cudaMemcpyDeviceToHost);
+    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
+                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy buffer back to memory\n");
 }
 
 
-__global__ void compute_avg_pooling(const float* in, float *out, int patchs_x,
+__global__ void compute_avg_pooling(const uint8_t* in, uint8_t *out, int patchs_x,
                                     int patchs_y, int pool_size, int pitchIn, int pitchOut) {
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -101,32 +101,32 @@ __global__ void compute_avg_pooling(const float* in, float *out, int patchs_x,
 
     if (x >= patchs_x || y >= patchs_y) return;
 
-    float sum = 0.0;
+    int sum = 0;
     int index_y = y * pool_size;
     int index_x = x * pool_size;
     for (int i = index_x; i <= index_x + pool_size; i++) {
         for (int j = index_y; j <= index_y + pool_size; j++) {
-            sum += in[(j * pitchIn/sizeof(float)) + i];
+            sum += in[(j * pitchIn) + i];
         }
     }
 
-    out[x + y * patchs_x] = 255.0;//sum / (pool_size*pool_size);
+    out[x + y * pitchOut] = sum / (pool_size*pool_size);
 }
 
 
-void average_pooling(float* buffer, float *output, int width, int height, int stride, int pool_size) {
+void average_pooling(const uint8_t* buffer, uint8_t *output, int width, int height, int stride, int pool_size) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
-    float*  devIn;
-    float* devOut;
+    uint8_t*  devIn;
+    uint8_t* devOut;
     size_t pitchIn, pitchOut;
     int patchs_x = std::floor((float)width / pool_size);
     int patchs_y = std::floor((float)height / pool_size);
 
     printf("%d %d\n", patchs_x, patchs_y);
 
-    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(float), height);
+    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
     if (rc)
         printf("Fail buffer allocation\n");
 
@@ -134,9 +134,11 @@ void average_pooling(float* buffer, float *output, int width, int height, int st
     if (rc)
         printf("Unable to copy buffer back to memory\n");
 
-    rc = cudaMallocPitch(&devOut, &pitchOut, patchs_x * sizeof(float), patchs_y);
+    rc = cudaMallocPitch(&devOut, &pitchOut, patchs_x * sizeof(uint8_t), patchs_y);
     if (rc)
         printf("Fail buffer allocation\n");
+    
+    printf("%d, %d, %d, %d\n", patchs_x, patchs_y, pitchIn, pitchOut);
 
     {
         dim3 dimBlock(1, 1);
@@ -150,8 +152,8 @@ void average_pooling(float* buffer, float *output, int width, int height, int st
     }
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride, devOut, pitchOut,
-                        patchs_x * sizeof(float), patchs_y, cudaMemcpyDeviceToHost);
+    rc = cudaMemcpy2D(output, patchs_x * sizeof(uint8_t), devOut, pitchOut,
+                        patchs_x * sizeof(uint8_t), patchs_y, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy buffer back to memory\n");
 }
