@@ -15,9 +15,7 @@ __global__ void compute_filter(const unsigned char* in, unsigned char *out, int 
           sum += in[((y + ky) * sIn) + (x + kx)];
       }
   }
-  float denum = width * width + height * height;
-  float    v       = (x * x + y * y) / denum;
-  out[x + y * sOut] = v * 255;//sum / ((2*r+1) * (2*r+1));
+  out[x + y * sOut] = sum / ((2*r+1) * (2*r+1));
 }
 
 void sobel_filter(unsigned char* buffer, int width, int height, int stride) {
@@ -49,7 +47,7 @@ void sobel_filter(unsigned char* buffer, int width, int height, int stride) {
 
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
-        compute_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, 0, pitchIn, pitchOut);
+        compute_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, 5, pitchIn, pitchOut);
         cudaDeviceSynchronize();
 
         if (cudaPeekAtLastError())
