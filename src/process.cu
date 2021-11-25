@@ -1,9 +1,10 @@
 #include "process.hpp"
 #include <stdio.h>
 
-__global__ void compute_filter(const unsigned char* in, float *out, int width, int height, int sIn, int sOut) {
+__global__ void sobel_x_filter(const unsigned char* in, float *out, int width,
+                            int height, int pitch) {
 
-    float sobel_x[3][3] = {{-1.0, 0.0, 1.0}, {-2.0, 0.0, 2.0}, {-1.0, 0.0, 1.0}};
+    float kernel[3][3] = {{-1.0, 0.0, 1.0}, {-2.0, 0.0, 2.0}, {-1.0, 0.0, 1.0}};
     int r = 1;
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -12,18 +13,41 @@ __global__ void compute_filter(const unsigned char* in, float *out, int width, i
     if (x < r || x >= width - r) return;
     if (y < r || y >= height - r) return;
 
-    float sum = 69.0;
+    float sum = 0.0;
     for (int kx = -r; kx <= r; kx++) {
         for (int ky = -r; ky <= r; ky++) {
-            float pixel = 1.0*in[((y + ky) * sIn) + (x + kx)];
-            sum += sobel_x[ky+r][kx+r] * pixel;
+            float pixel = in[((y + ky) * pitch) + (x + kx)];
+            sum += kernel[ky+r][kx+r] * pixel;
         }
     }
 
-    out[x + y * sIn] = (sum > 0) ? sum : -sum;
+    out[x + y * pitch] = (sum > 0) ? sum : -sum;
 }
 
-void sobel_filter(unsigned char* buffer, float *filter_output, int width, int height, int stride) {
+__global__ void sobel_y_filter(const unsigned char* in, float *out, int width,
+                            int height, int pitch) {
+
+    float kernel[3][3] = {{1.0, 2.0, 1.0}, {0.0, 0.0, 0.0}, {-1.0, -2.0, -1.0}};
+    int r = 1;
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x < r || x >= width - r) return;
+    if (y < r || y >= height - r) return;
+
+    float sum = 0.0;
+    for (int kx = -r; kx <= r; kx++) {
+        for (int ky = -r; ky <= r; ky++) {
+            float pixel = in[((y + ky) * pitch) + (x + kx)];
+            sum += kernel[ky+r][kx+r] * pixel;
+        }
+    }
+
+    out[x + y * pitch] = (sum > 0) ? sum : -sum;
+}
+
+void sobel_filter(unsigned char* buffer, float *filter_output, int width, int height, int stride, char type) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
@@ -43,8 +67,6 @@ void sobel_filter(unsigned char* buffer, float *filter_output, int width, int he
     if (rc)
         printf("Fail buffer allocation\n");
 
-    printf("%d, %d, %d, %d\n", width, height, pitchIn, pitchOut);
-
     {
         int bsize = 32;
         int w     = std::ceil((float)width / bsize);
@@ -52,7 +74,10 @@ void sobel_filter(unsigned char* buffer, float *filter_output, int width, int he
 
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
-        compute_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
+        if (type == 'x')
+            sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn);
+        else
+            sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn);
         cudaDeviceSynchronize();
 
         if (cudaPeekAtLastError())
