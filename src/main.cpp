@@ -1,5 +1,7 @@
 #include <CLI/CLI.hpp>
-
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include "process.hpp"
 
 int main(int argc, char** argv) {
     (void) argc;
@@ -22,5 +24,19 @@ int main(int argc, char** argv) {
     {
         printf("GPU\n");
     }
+    
+    cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
 
+    std::vector<uint8_t> img_vec;
+    if (!img.isContinuous()) {
+        std::cout << "Could not onvert img to array" << std::endl;
+    }
+    img_vec.assign(img.data, img.data + img.total()*img.channels());
+
+    unsigned char *buffer = img_vec.data();
+
+    sobel_filter(buffer, img.rows, img.cols, img.rows);
+
+    cv::Mat output = cv::Mat(img.rows, img.cols, CV_8U, buffer);
+    cv::imwrite("../output_gpu/test.jpg", output);
 }
