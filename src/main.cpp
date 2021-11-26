@@ -30,9 +30,12 @@ int main(int argc, char** argv) {
     
     cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
 
-    int width = img.size().width;
-    int height = img.size().height;
-    int stride = width;
+    int orig_width = img.size().width;
+    int orig_height = img.size().height;
+
+
+    int output_width = orig_width/POOLSIZE;
+    int output_height = orig_height/POOLSIZE;
 
     std::vector<uint8_t> img_vec;
     if (!img.isContinuous()) {
@@ -42,29 +45,12 @@ int main(int argc, char** argv) {
 
     unsigned char *buffer = img_vec.data();
 
-    uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
-    sobel_filter(buffer, sobel_x, width, height, stride * sizeof(uint8_t), 'x');
 
-    uint8_t *sobel_y = (uint8_t*)calloc(width * height, sizeof(uint8_t));
-    sobel_filter(buffer, sobel_y, width, height, stride * sizeof(uint8_t), 'y');
-
-    int pool_size = 31;
-    int patchs_y = height/pool_size;
-    int patchs_x = width/pool_size;
-    uint8_t *resp = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    average_pooling(sobel_x, sobel_y, resp, width, height, stride * sizeof(uint8_t), pool_size);
-
-    uint8_t *post_proc = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    morph_closure(resp, post_proc, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
-
-    uint8_t *output = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    threshold(post_proc, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
-    cv::Mat output_img = cv::Mat(patchs_y, patchs_x, CV_8U, output);
+    uint8_t *output = (uint8_t*)calloc(output_width * output_height, sizeof(uint8_t));
+    process_image(buffer, output, orig_width, orig_height);
+    cv::Mat output_img = cv::Mat(output_height, output_width, CV_8U, output);
     cv::imwrite("../output_gpu/output.jpg", output_img);
-
-    free(sobel_x);
-    free(sobel_y);
-    free(resp);
-    free(post_proc);
     free(output);
+
+    return 0;
 }

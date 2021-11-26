@@ -47,58 +47,29 @@ __global__ void sobel_y_filter(const uint8_t* in, uint8_t *out, int width,
     out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
 }
 
-void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height, int stride, char type) {
-    cudaError_t rc = cudaSuccess;
+void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
+                    int pitchIn, int pitchOut, char type) {
 
-    // Allocate device memory
-    uint8_t* devIn;
-    uint8_t* devOut;
-    size_t pitchIn, pitchOut;
+    int bsize = 32;
+    int w     = std::ceil((float)width / bsize);
+    int h     = std::ceil((float)height / bsize);
 
-    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
+    dim3 dimBlock(bsize, bsize);
+    dim3 dimGrid(w, h);
+    if (type == 'x')
+        sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
+    else
+        sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
+    cudaDeviceSynchronize();
 
-    rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
-    if (rc)
-        printf("Couldn't copy data to gpu\n");
-
-    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
-
-    {
-        int bsize = 32;
-        int w     = std::ceil((float)width / bsize);
-        int h     = std::ceil((float)height / bsize);
-
-        dim3 dimBlock(bsize, bsize);
-        dim3 dimGrid(w, h);
-        if (type == 'x')
-            sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
-        else
-            sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
-        cudaDeviceSynchronize();
-
-        if (cudaPeekAtLastError())
-            printf("sobel filter Error\n");
-
-    }
-
-    // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
-                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
-    if (rc)
-        printf("Unable to copy buffer back to memory\n");
-
-    cudaFree(devIn);
-    cudaFree(devOut);
+    if (cudaPeekAtLastError())
+        printf("sobel filter Error\n");
 }
 
 
 __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely,
-                                    uint8_t *out, int patchs_x, int patchs_y,
-                                    int pool_size, int pitchIn, int pitchOut) {
+                                    uint8_t *out, int patchs_x, int patchs_y, int pool_size,
+                                    int pitchX, int pitchY, int pitchOut) {
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
@@ -111,67 +82,29 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
     int index_x = x * pool_size;
     for (int i = index_x; i <= index_x + pool_size; i++) {
         for (int j = index_y; j <= index_y + pool_size; j++) {
-            sumX += sobelx[(j * pitchIn) + i];
-            sumY += sobely[(j * pitchIn) + i];
+            sumX += sobelx[(j * pitchX) + i];
+            sumY += sobely[(j * pitchY) + i];
         }
     }
     sumX /= (pool_size*pool_size);
     sumY /= (pool_size*pool_size);
-    out[x + y * pitchOut] = (sumX - sumY);
+    out[x + y * pitchOut] = sumX - sumY;
 }
 
 
-void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *output,
-                     int width, int height, int stride, int pool_size) {
-    cudaError_t rc = cudaSuccess;
+void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
+                     int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
-    // Allocate device memory
-    uint8_t* devSobelX;
-    uint8_t* devSobelY;
-    uint8_t* devOut;
-    size_t pitchIn, pitchOut;
-    int patchs_x = std::floor((float)width / pool_size);
-    int patchs_y = std::floor((float)height / pool_size);
 
-    rc = cudaMallocPitch(&devSobelX, &pitchIn, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
-    rc = cudaMallocPitch(&devSobelY, &pitchIn, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
+    dim3 dimBlock(1, 1);
+    dim3 dimGrid(patchs_x, patchs_y);
+    compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
+                                                POOLSIZE, pitchX, pitchY, pitchOut);
+    cudaDeviceSynchronize();
 
-    rc = cudaMemcpy2D(devSobelX, pitchIn, sobel_x, stride, width, height, cudaMemcpyHostToDevice);
-    if (rc)
-        printf("Couldn't copy data to gpu\n");
-    rc = cudaMemcpy2D(devSobelY, pitchIn, sobel_y, stride, width, height, cudaMemcpyHostToDevice);
-    if (rc)
-        printf("Couldn't copy data to gpu\n");
+    if (cudaPeekAtLastError())
+        printf("avg pooling Error\n");
 
-    rc = cudaMallocPitch(&devOut, &pitchOut, patchs_x * sizeof(uint8_t), patchs_y);
-    if (rc)
-        printf("Fail buffer allocation\n");
-
-    {
-        dim3 dimBlock(1, 1);
-        dim3 dimGrid(patchs_x, patchs_y);
-        compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x,
-                                                    patchs_y, pool_size, pitchIn, pitchOut);
-        cudaDeviceSynchronize();
-
-        if (cudaPeekAtLastError())
-            printf("avg pooling Error\n");
-
-    }
-
-    // Copy back to main memory
-    rc = cudaMemcpy2D(output, patchs_x * sizeof(uint8_t), devOut, pitchOut,
-                        patchs_x * sizeof(uint8_t), patchs_y, cudaMemcpyDeviceToHost);
-    if (rc)
-        printf("Unable to copy buffer back to memory\n");
-
-    cudaFree(devSobelX);
-    cudaFree(devSobelY);
-    cudaFree(devOut);
 }
 
 
@@ -198,31 +131,16 @@ __global__ void compute_threshold(const uint8_t* in,
     out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
 }
 
-void threshold(const uint8_t* buffer, uint8_t *output,
-                int width, int height, int stride) {
+void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
+                int pitchIn, int pitchOut) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
-    uint8_t* devIn;
     unsigned int* devMax;
-    uint8_t* devOut;
-    size_t pitchIn, pitchOut;
-
-    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
 
     rc = cudaMalloc(&devMax, sizeof(unsigned int));
     if (rc)
-        printf("Fail max allocation\n");
-
-    rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
-    if (rc)
-        printf("Couldn't copy data to gpu\n");
-
-    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
+        printf("Fail max variable allocation\n");
 
     {
         int bsize = 32;
@@ -243,15 +161,6 @@ void threshold(const uint8_t* buffer, uint8_t *output,
             printf("thresholding Error\n");
 
     }
-
-    // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
-                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
-    if (rc)
-        printf("Unable to copy buffer back to memory\n");
-
-    cudaFree(devIn);
-    cudaFree(devOut);
     cudaFree(devMax);
 }
 
@@ -311,31 +220,18 @@ __global__ void erosion(const uint8_t* in, uint8_t *out, int width,
 }
 
 
-void morph_closure(const uint8_t* buffer, uint8_t *output,
-                int width, int height, int stride) {
+void morph_closure(const uint8_t* devIn, uint8_t *devOut,
+                    int width, int height, int pitchIn, int pitchOut) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
-    uint8_t* devIn;
     uint8_t* devTmp;
-    uint8_t* devOut;
-    size_t pitchIn, pitchTmp, pitchOut;
+    size_t pitchTmp;
 
-    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
-
-    rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
-    if (rc)
-        printf("Couldn't copy data to gpu\n");
 
     rc = cudaMallocPitch(&devTmp, &pitchTmp, width * sizeof(uint8_t), height);
     if (rc)
-        printf("Fail buffer allocation\n");
-
-    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail buffer allocation\n");
+        printf("Fail tmp buffer allocation\n");
 
     {
         int bsize = 32;
@@ -350,20 +246,85 @@ void morph_closure(const uint8_t* buffer, uint8_t *output,
         if (cudaPeekAtLastError())
             printf("dilation Error\n");
         
-        erosion<<<dimGrid, dimBlock>>>(devTmp, devOut, width, height, pitchIn, pitchOut);
+        erosion<<<dimGrid, dimBlock>>>(devTmp, devOut, width, height, pitchTmp, pitchOut);
         cudaDeviceSynchronize();
         if (cudaPeekAtLastError())
             printf("erosion Error\n");
-
     }
 
-    // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
-                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
-    if (rc)
-        printf("Unable to copy buffer back to memory\n");
-
-    cudaFree(devIn);
     cudaFree(devTmp);
-    cudaFree(devOut);
+}
+
+
+void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
+    cudaError_t rc = cudaSuccess;
+
+    int stride_input = width * sizeof(uint8_t);
+
+    // Allocate device memory
+    uint8_t *devImg, *devSobelX, *devSobelY;
+    size_t pitchImg, pitchX, pitchY;
+
+    rc = cudaMallocPitch(&devImg, &pitchImg, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+
+    rc = cudaMemcpy2D(devImg, pitchImg, img, stride_input, width, height, cudaMemcpyHostToDevice);
+    if (rc)
+        printf("Couldn't copy img to gpu\n");
+
+
+    // Sobel X
+    rc = cudaMallocPitch(&devSobelX, &pitchX, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+    sobel_filter(devImg, devSobelX, width, height, pitchImg, pitchX, 'x');
+
+    // Sobel Y
+    rc = cudaMallocPitch(&devSobelY, &pitchY, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+    sobel_filter(devImg, devSobelY, width, height, pitchImg, pitchY, 'y');
+
+    // Average Pooling
+    int new_width = std::floor((float)width / POOLSIZE);
+    int new_height = std::floor((float)height / POOLSIZE);
+    int stride_out = new_width * sizeof(uint8_t);
+
+    uint8_t *devResp;
+    size_t pitchResp;
+    rc = cudaMallocPitch(&devResp, &pitchResp, new_width * sizeof(uint8_t), new_height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+    average_pooling(devSobelX, devSobelY, devResp, new_width, new_height, pitchX, pitchY, pitchResp);
+
+    // Morphological Closure
+    uint8_t *devPostproc;
+    size_t pitchPostproc;
+    rc = cudaMallocPitch(&devPostproc, &pitchPostproc, new_width * sizeof(uint8_t), new_height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+    morph_closure(devResp, devPostproc, new_width, new_height, pitchResp, pitchPostproc);
+
+    // Thresholding
+    uint8_t *devOutput;
+    size_t pitchOutput;
+    rc = cudaMallocPitch(&devOutput, &pitchOutput, new_width * sizeof(uint8_t), new_height);
+    if (rc)
+        printf("Fail devIn allocation\n");
+    threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
+
+    // Copy back to main memory
+    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchPostproc,
+                        new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
+    if (rc)
+        printf("Unable to copy output back to memory\n");
+
+
+    cudaFree(devImg);
+    cudaFree(devSobelX);
+    cudaFree(devSobelY);
+    cudaFree(devResp);
+    cudaFree(devPostproc);
+    cudaFree(devOutput);
 }
