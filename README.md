@@ -11,7 +11,7 @@ sys     0m0.024s
 
 * GPU
 ```
-real    0m0.377s
-user    0m0.206s
-sys     0m0.112s
+real    0m0.209s
+user    0m0.098s
+sys     0m0.090s
 ```

@@ -44,26 +44,18 @@ int main(int argc, char** argv) {
 
     uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
     sobel_filter(buffer, sobel_x, width, height, stride * sizeof(uint8_t), 'x');
-    cv::Mat sobelx = cv::Mat(height, width, CV_8U, sobel_x);
-    cv::imwrite("../output_gpu/sobelx.jpg", sobelx);
 
     uint8_t *sobel_y = (uint8_t*)calloc(width * height, sizeof(uint8_t));
     sobel_filter(buffer, sobel_y, width, height, stride * sizeof(uint8_t), 'y');
-    cv::Mat sobely = cv::Mat(height, width, CV_8U, sobel_y);
-    cv::imwrite("../output_gpu/sobely.jpg", sobely);
 
     int pool_size = 31;
     int patchs_y = height/pool_size;
     int patchs_x = width/pool_size;
     uint8_t *resp = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     average_pooling(sobel_x, sobel_y, resp, width, height, stride * sizeof(uint8_t), pool_size);
-    cv::Mat resp_out = cv::Mat(patchs_y, patchs_x, CV_8U, resp);
-    cv::imwrite("../output_gpu/response.jpg", resp_out);
 
     uint8_t *post_proc = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     morph_closure(resp, post_proc, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
-    cv::Mat resp_postproc = cv::Mat(patchs_y, patchs_x, CV_8U, post_proc);
-    cv::imwrite("../output_gpu/resp_postproc.jpg", resp_postproc);
 
     uint8_t *output = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     threshold(post_proc, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
