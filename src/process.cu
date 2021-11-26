@@ -268,19 +268,46 @@ __global__ void dilation(const uint8_t* in, uint8_t *out, int width,
 
     if (x >= width || y >= height) return;
 
-    uint8_t pixel = in[x + y * pitchIn];
-    out[x + y * pitchOut] = pixel;
-
-    if (pixel > 0) {
-        for (int kx = -r; kx <= r; kx++) {
-            for (int ky = -r; ky <= r; ky++) {
-                if (y + ky < 0 && y + ky >= height) continue;
-                if (x + kx < 0 && x + kx >= width) continue;
-                int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-                out[x + y * pitchOut] = kernel[ky+r][kx+r] | pixel;
-            }
+    uint8_t current_val = in[x + y * pitchIn];
+    for (int kx = -r; kx <= r; kx++) {
+        for (int ky = -r; ky <= r; ky++) {
+            if (kernel[ky+r][kx+r] == 0) continue;
+            if (y + ky < 0 && y + ky >= height) continue;
+            if (x + kx < 0 && x + kx >= width) continue;
+            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
+            if (prop_val > current_val)
+                current_val = prop_val;
         }
     }
+
+    out[x + y * pitchOut] = current_val;
+}
+
+__global__ void erosion(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
+
+    int kernel[5][5] = {{0, 0, 0, 0, 0}, {1, 1, 1, 1, 1}, {1, 1, 1, 1, 1},
+                        {1, 1, 1, 1, 1}, {0, 0, 0, 0, 0}};
+    int r = 2;
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    uint8_t current_val = in[x + y * pitchIn];
+    for (int kx = -r; kx <= r; kx++) {
+        for (int ky = -r; ky <= r; ky++) {
+            if (kernel[ky+r][kx+r] == 0) continue;
+            if (y + ky < 0 && y + ky >= height) continue;
+            if (x + kx < 0 && x + kx >= width) continue;
+            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
+            if (prop_val < current_val)
+                current_val = prop_val;
+        }
+    }
+
+    out[x + y * pitchOut] = current_val;
 }
 
 
