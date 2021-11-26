@@ -71,24 +71,23 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
                                     uint8_t *out, int patchs_x, int patchs_y, int pool_size,
                                     int pitchX, int pitchY, int pitchOut) {
 
+    __shared__ int local_sum;
+    if(threadIdx.x == 0 && threadIdx.y) local_sum = 0;
+    __syncthreads();
+
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (x >= patchs_x || y >= patchs_y) return;
+    if (x < patchs_x * pool_size || y < patchs_y * pool_size)
+        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
 
-    float sumX = 0;
-    float sumY = 0;
-    int index_y = y * pool_size;
-    int index_x = x * pool_size;
-    for (int i = index_x; i <= index_x + pool_size; i++) {
-        for (int j = index_y; j <= index_y + pool_size; j++) {
-            sumX += sobelx[(j * pitchX) + i];
-            sumY += sobely[(j * pitchY) + i];
-        }
+    __syncthreads();
+    if(threadIdx.x == 0 && threadIdx.y) {
+        x /= POOLSIZE;
+        y /= POOLSIZE;
+        float mean = local_sum/(pool_size*pool_size);
+        out[x + y * pitchOut] = mean;
     }
-    sumX /= (pool_size*pool_size);
-    sumY /= (pool_size*pool_size);
-    out[x + y * pitchOut] = sumX - sumY;
 }
 
 
@@ -96,7 +95,7 @@ void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t
                      int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
 
-    dim3 dimBlock(1, 1);
+    dim3 dimBlock(POOLSIZE, POOLSIZE);
     dim3 dimGrid(patchs_x, patchs_y);
     compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
                                                 POOLSIZE, pitchX, pitchY, pitchOut);
@@ -315,7 +314,7 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
     threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchPostproc,
+    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchOutput,
                         new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
