@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
         printf("GPU\n");
     }
     
-    cv::Mat img = cv::imread("../test.png", 0);
+    cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
 
     int width = img.size().width;
     int height = img.size().height;
@@ -53,7 +53,7 @@ int main(int argc, char** argv) {
 
     unsigned char *buffer = img_vec.data();
 
-    /*uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
+    uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
     sobel_filter(buffer, sobel_x, width, height, stride * sizeof(uint8_t), 'x');
     cv::Mat sobelx = cv::Mat(height, width, CV_8U, sobel_x);
     cv::imwrite("../output_gpu/sobelx.jpg", sobelx);
@@ -69,34 +69,21 @@ int main(int argc, char** argv) {
     uint8_t *resp = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     average_pooling(sobel_x, sobel_y, resp, width, height, stride * sizeof(uint8_t), pool_size);
     cv::Mat resp_out = cv::Mat(patchs_y, patchs_x, CV_8U, resp);
-    cv::imwrite("../output_gpu/response.jpg", resp_out);*/
+    cv::imwrite("../output_gpu/response.jpg", resp_out);
 
-
-    //int postproc_size = 5;
-    //cv::Mat resp_postproc;
-    //post_processing(resp_out, resp_postproc, postproc_size);
-    int patchs_x = width;
-    int patchs_y = height;
     uint8_t *post_proc = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    morph_closure(buffer, post_proc, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
+    morph_closure(resp, post_proc, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
     cv::Mat resp_postproc = cv::Mat(patchs_y, patchs_x, CV_8U, post_proc);
     cv::imwrite("../output_gpu/resp_postproc.jpg", resp_postproc);
 
-    /*std::vector<uint8_t> resp_vec;
-    if (!resp_postproc.isContinuous()) {
-        std::cout << "Could not convert img to array" << std::endl;
-    }
-    resp_vec.assign(resp_postproc.data, resp_postproc.data + resp_postproc.total()*resp_postproc.channels());
-    buffer = resp_vec.data();
-
     uint8_t *output = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    threshold(buffer, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
+    threshold(post_proc, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
     cv::Mat output_img = cv::Mat(patchs_y, patchs_x, CV_8U, output);
-    cv::imwrite("../output_gpu/output.jpg", output_img);*/
+    cv::imwrite("../output_gpu/output.jpg", output_img);
 
-    /*free(sobel_x);
+    free(sobel_x);
     free(sobel_y);
-    free(resp);*/
+    free(resp);
     free(post_proc);
-    //free(output);
+    free(output);
 }

@@ -345,15 +345,15 @@ void morph_closure(const uint8_t* buffer, uint8_t *output,
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
 
-        dilation<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchTmp);
+        dilation<<<dimGrid, dimBlock>>>(devIn, devTmp, width, height, pitchIn, pitchTmp);
         cudaDeviceSynchronize();
         if (cudaPeekAtLastError())
             printf("dilation Error\n");
         
-        /*compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
+        erosion<<<dimGrid, dimBlock>>>(devTmp, devOut, width, height, pitchIn, pitchOut);
         cudaDeviceSynchronize();
         if (cudaPeekAtLastError())
-            printf("thresholding Error\n");*/
+            printf("erosion Error\n");
 
     }
 
