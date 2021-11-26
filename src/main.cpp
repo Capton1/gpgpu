@@ -6,17 +6,6 @@
 #include "process.hpp"
 
 
-void post_processing(cv::Mat src, cv::Mat &dst, int postproc_size) {
-    cv::Mat se(cv::Size(postproc_size, postproc_size), CV_8U, cv::Scalar(0));
-    for (int i = postproc_size/2 - 1; i < postproc_size/2 + 2; i++) {
-        for (int j = 0; j < postproc_size; j++) {
-            se.at<uint8_t>(i, j) = 1;
-        }
-    }
-
-    morphologyEx(src, dst, cv::MORPH_CLOSE, se);
-}
-
 int main(int argc, char** argv) {
     (void) argc;
     (void) argv;
