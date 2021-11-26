@@ -6,27 +6,6 @@
 #include "process.hpp"
 
 
-void average_pooling(cv::Mat src, cv::Mat &dst, int pool_size) {
-    cv::Size s = src.size();
-    int patchs_y = s.height/pool_size;
-    int patchs_x = s.width/pool_size;
-    dst.create(cv::Size(patchs_x, patchs_y), CV_8U);
-
-    for (int ii = 0; ii < patchs_y; ii++) {
-        for (int jj = 0; jj < patchs_x; jj++) {
-            unsigned int sum = 0;
-            int index_y = ii * pool_size;
-            int index_x = jj * pool_size;
-            for (int i = index_y; i < index_y+pool_size; i++) {
-                for (int j = index_x; j < index_x+pool_size; j++) {
-                    sum += src.at<uint8_t>(i, j);
-                }
-            }
-            dst.at<uint8_t>(ii, jj) = sum/(pool_size*pool_size);
-        }
-    }
-}
-
 void post_processing(cv::Mat src, cv::Mat &dst, int postproc_size) {
     cv::Mat se(cv::Size(postproc_size, postproc_size), CV_8U, cv::Scalar(0));
     for (int i = postproc_size/2 - 1; i < postproc_size/2 + 2; i++) {
@@ -60,7 +39,7 @@ int main(int argc, char** argv) {
         printf("GPU\n");
     }
     
-    cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
+    cv::Mat img = cv::imread("../test.png", 0);
 
     int width = img.size().width;
     int height = img.size().height;
@@ -74,7 +53,7 @@ int main(int argc, char** argv) {
 
     unsigned char *buffer = img_vec.data();
 
-    uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
+    /*uint8_t *sobel_x = (uint8_t*)calloc(width * height, sizeof(uint8_t));
     sobel_filter(buffer, sobel_x, width, height, stride * sizeof(uint8_t), 'x');
     cv::Mat sobelx = cv::Mat(height, width, CV_8U, sobel_x);
     cv::imwrite("../output_gpu/sobelx.jpg", sobelx);
@@ -90,30 +69,34 @@ int main(int argc, char** argv) {
     uint8_t *resp = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     average_pooling(sobel_x, sobel_y, resp, width, height, stride * sizeof(uint8_t), pool_size);
     cv::Mat resp_out = cv::Mat(patchs_y, patchs_x, CV_8U, resp);
-    cv::imwrite("../output_gpu/response.jpg", resp_out);
+    cv::imwrite("../output_gpu/response.jpg", resp_out);*/
 
 
-    int postproc_size = 5;
-    cv::Mat resp_postproc;
-    post_processing(resp_out, resp_postproc, postproc_size);
+    //int postproc_size = 5;
+    //cv::Mat resp_postproc;
+    //post_processing(resp_out, resp_postproc, postproc_size);
+    int patchs_x = width;
+    int patchs_y = height;
+    uint8_t *post_proc = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
+    morph_closure(buffer, post_proc, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
+    cv::Mat resp_postproc = cv::Mat(patchs_y, patchs_x, CV_8U, post_proc);
     cv::imwrite("../output_gpu/resp_postproc.jpg", resp_postproc);
 
-    std::vector<uint8_t> resp_vec;
+    /*std::vector<uint8_t> resp_vec;
     if (!resp_postproc.isContinuous()) {
         std::cout << "Could not convert img to array" << std::endl;
     }
     resp_vec.assign(resp_postproc.data, resp_postproc.data + resp_postproc.total()*resp_postproc.channels());
     buffer = resp_vec.data();
 
-    double maxVal;
-    cv::minMaxLoc(resp_postproc, nullptr, &maxVal);
     uint8_t *output = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
-    threshold(buffer, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t), maxVal*0.5);
+    threshold(buffer, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t));
     cv::Mat output_img = cv::Mat(patchs_y, patchs_x, CV_8U, output);
-    cv::imwrite("../output_gpu/output.jpg", output_img);
+    cv::imwrite("../output_gpu/output.jpg", output_img);*/
 
-    free(sobel_x);
+    /*free(sobel_x);
     free(sobel_y);
-    free(resp);
-    free(output);
+    free(resp);*/
+    free(post_proc);
+    //free(output);
 }

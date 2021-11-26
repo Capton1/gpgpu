@@ -198,8 +198,8 @@ __global__ void compute_threshold(const uint8_t* in,
     out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
 }
 
-void threshold(const uint8_t* buffer, uint8_t *output, int width,
-                int height, int stride, uint8_t value) {
+void threshold(const uint8_t* buffer, uint8_t *output,
+                int width, int height, int stride) {
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
@@ -232,18 +232,13 @@ void threshold(const uint8_t* buffer, uint8_t *output, int width,
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
 
-        printf("Tresholding value %d\n", value);
-
         compute_max<<<dimGrid, dimBlock>>>(devIn, devMax, width, height, pitchIn);
         cudaDeviceSynchronize();
-        unsigned int max;
-        cudaMemcpy(&max, devMax, sizeof(unsigned int), cudaMemcpyDeviceToHost);
-        
-        printf("Max value %d\n", max);
+        if (cudaPeekAtLastError())
+            printf("max Error\n");
         
         compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
         cudaDeviceSynchronize();
-
         if (cudaPeekAtLastError())
             printf("thresholding Error\n");
 
@@ -256,5 +251,92 @@ void threshold(const uint8_t* buffer, uint8_t *output, int width,
         printf("Unable to copy buffer back to memory\n");
 
     cudaFree(devIn);
+    cudaFree(devOut);
+    cudaFree(devMax);
+}
+
+
+__global__ void dilation(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
+
+    int kernel[5][5] = {{0, 0, 0, 0, 0}, {255, 255, 255, 255, 255}, {255, 255, 255, 255, 255},
+                        {255, 255, 255, 255, 255}, {0, 0, 0, 0, 0}};
+    int r = 2;
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    uint8_t pixel = in[x + y * pitchIn];
+    out[x + y * pitchOut] = pixel;
+
+    if (pixel > 0) {
+        for (int kx = -r; kx <= r; kx++) {
+            for (int ky = -r; ky <= r; ky++) {
+                if (y + ky < 0 && y + ky >= height) continue;
+                if (x + kx < 0 && x + kx >= width) continue;
+                int pixel = in[((y + ky) * pitchIn) + (x + kx)];
+                out[x + y * pitchOut] = kernel[ky+r][kx+r] | pixel;
+            }
+        }
+    }
+}
+
+
+void morph_closure(const uint8_t* buffer, uint8_t *output,
+                int width, int height, int stride) {
+    cudaError_t rc = cudaSuccess;
+
+    // Allocate device memory
+    uint8_t* devIn;
+    uint8_t* devTmp;
+    uint8_t* devOut;
+    size_t pitchIn, pitchTmp, pitchOut;
+
+    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail buffer allocation\n");
+
+    rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
+    if (rc)
+        printf("Couldn't copy data to gpu\n");
+
+    rc = cudaMallocPitch(&devTmp, &pitchTmp, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail buffer allocation\n");
+
+    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail buffer allocation\n");
+
+    {
+        int bsize = 32;
+        int w     = std::ceil((float)width / bsize);
+        int h     = std::ceil((float)height / bsize);
+
+        dim3 dimBlock(bsize, bsize);
+        dim3 dimGrid(w, h);
+
+        dilation<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchTmp);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("dilation Error\n");
+        
+        /*compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("thresholding Error\n");*/
+
+    }
+
+    // Copy back to main memory
+    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
+                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
+    if (rc)
+        printf("Unable to copy buffer back to memory\n");
+
+    cudaFree(devIn);
+    cudaFree(devTmp);
     cudaFree(devOut);
 }
