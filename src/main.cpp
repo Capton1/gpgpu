@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
 
     std::vector<uint8_t> img_vec;
     if (!img.isContinuous()) {
-        std::cout << "Could not onvert img to array" << std::endl;
+        std::cout << "Could not convert img to array" << std::endl;
     }
     img_vec.assign(img.data, img.data + img.total()*img.channels());
 
@@ -87,7 +87,6 @@ int main(int argc, char** argv) {
     int pool_size = 31;
     int patchs_y = height/pool_size;
     int patchs_x = width/pool_size;
-    std::cout << patchs_x << " : " << patchs_y << std::endl;
     uint8_t *resp = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
     average_pooling(sobel_x, sobel_y, resp, width, height, stride * sizeof(uint8_t), pool_size);
     cv::Mat resp_out = cv::Mat(patchs_y, patchs_x, CV_8U, resp);
@@ -98,4 +97,9 @@ int main(int argc, char** argv) {
     cv::Mat resp_postproc;
     post_processing(resp_out, resp_postproc, postproc_size);
     cv::imwrite("../output_gpu/resp_postproc.jpg", resp_postproc);
+    
+
+    free(sobel_x);
+    free(sobel_y);
+    free(resp);
 }

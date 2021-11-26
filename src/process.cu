@@ -51,7 +51,7 @@ void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height,
     cudaError_t rc = cudaSuccess;
 
     // Allocate device memory
-    uint8_t*  devIn;
+    uint8_t* devIn;
     uint8_t* devOut;
     size_t pitchIn, pitchOut;
 
@@ -61,7 +61,7 @@ void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height,
 
     rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("Unable to copy buffer back to memory\n");
+        printf("copy data to gpu\n");
 
     rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
     if (rc)
@@ -90,6 +90,9 @@ void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height,
                         width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy buffer back to memory\n");
+
+    cudaFree(devIn);
+    cudaFree(devOut);
 }
 
 
@@ -130,8 +133,6 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
     int patchs_x = std::floor((float)width / pool_size);
     int patchs_y = std::floor((float)height / pool_size);
 
-    printf("%d %d\n", patchs_x, patchs_y);
-
     rc = cudaMallocPitch(&devSobelX, &pitchIn, width * sizeof(uint8_t), height);
     if (rc)
         printf("Fail buffer allocation\n");
@@ -141,10 +142,10 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
 
     rc = cudaMemcpy2D(devSobelX, pitchIn, sobel_x, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("Fail buffer allocation\n");
+        printf("Fail copy data to gpu\n");
     rc = cudaMemcpy2D(devSobelY, pitchIn, sobel_y, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("Fail buffer allocation\n");
+        printf("Fail copy data to gpu\n");
 
     rc = cudaMallocPitch(&devOut, &pitchOut, patchs_x * sizeof(uint8_t), patchs_y);
     if (rc)
@@ -167,4 +168,8 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
                         patchs_x * sizeof(uint8_t), patchs_y, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy buffer back to memory\n");
+
+    cudaFree(devSobelX);
+    cudaFree(devSobelY);
+    cudaFree(devOut);
 }
