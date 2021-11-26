@@ -174,19 +174,29 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
     cudaFree(devOut);
 }
 
-__global__ void compute_threshold(const uint8_t* in,
-                                    uint8_t *out, int width, int height,
-                                    int pitchIn, int pitchOut, uint8_t value) {
+
+__global__ void compute_max(const uint8_t* in, unsigned int *max,
+                            int width, int height, int pitchIn) {
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
 
     if (x >= width || y >= height) return;
 
-    out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
+    atomicMax(max, in[x + y * pitchIn]);
 }
 
+__global__ void compute_threshold(const uint8_t* in,
+                                    uint8_t *out, unsigned int *max, int width, int height,
+                                    int pitchIn, int pitchOut) {
 
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+    uint8_t value = *max/2;
+    out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
+}
 
 void threshold(const uint8_t* buffer, uint8_t *output, int width,
                 int height, int stride, uint8_t value) {
@@ -194,12 +204,17 @@ void threshold(const uint8_t* buffer, uint8_t *output, int width,
 
     // Allocate device memory
     uint8_t* devIn;
+    unsigned int* devMax;
     uint8_t* devOut;
     size_t pitchIn, pitchOut;
 
     rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
     if (rc)
         printf("Fail buffer allocation\n");
+
+    rc = cudaMalloc(&devMax, sizeof(unsigned int));
+    if (rc)
+        printf("Fail max allocation\n");
 
     rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
@@ -216,7 +231,17 @@ void threshold(const uint8_t* buffer, uint8_t *output, int width,
 
         dim3 dimBlock(bsize, bsize);
         dim3 dimGrid(w, h);
-        compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut, value);
+
+        printf("Tresholding value %d\n", value);
+
+        compute_max<<<dimGrid, dimBlock>>>(devIn, devMax, width, height, pitchIn);
+        cudaDeviceSynchronize();
+        unsigned int max;
+        cudaMemcpy(&max, devMax, sizeof(unsigned int), cudaMemcpyDeviceToHost);
+        
+        printf("Max value %d\n", max);
+        
+        compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
         cudaDeviceSynchronize();
 
         if (cudaPeekAtLastError())
