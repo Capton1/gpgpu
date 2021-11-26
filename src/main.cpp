@@ -97,9 +97,23 @@ int main(int argc, char** argv) {
     cv::Mat resp_postproc;
     post_processing(resp_out, resp_postproc, postproc_size);
     cv::imwrite("../output_gpu/resp_postproc.jpg", resp_postproc);
-    
+
+    std::vector<uint8_t> resp_vec;
+    if (!resp_postproc.isContinuous()) {
+        std::cout << "Could not convert img to array" << std::endl;
+    }
+    resp_vec.assign(resp_postproc.data, resp_postproc.data + resp_postproc.total()*resp_postproc.channels());
+    buffer = resp_vec.data();
+
+    double maxVal;
+    cv::minMaxLoc(resp_postproc, nullptr, &maxVal);
+    uint8_t *output = (uint8_t*)calloc(patchs_x * patchs_y, sizeof(uint8_t));
+    threshold(buffer, output, patchs_x, patchs_y, patchs_x * sizeof(uint8_t), maxVal*0.5);
+    cv::Mat output_img = cv::Mat(patchs_y, patchs_x, CV_8U, output);
+    cv::imwrite("../output_gpu/output.jpg", output_img);
 
     free(sobel_x);
     free(sobel_y);
     free(resp);
+    free(output);
 }

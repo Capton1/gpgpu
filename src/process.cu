@@ -61,7 +61,7 @@ void sobel_filter(const uint8_t* buffer, uint8_t *output, int width, int height,
 
     rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("copy data to gpu\n");
+        printf("Couldn't copy data to gpu\n");
 
     rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
     if (rc)
@@ -142,10 +142,10 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
 
     rc = cudaMemcpy2D(devSobelX, pitchIn, sobel_x, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("Fail copy data to gpu\n");
+        printf("Couldn't copy data to gpu\n");
     rc = cudaMemcpy2D(devSobelY, pitchIn, sobel_y, stride, width, height, cudaMemcpyHostToDevice);
     if (rc)
-        printf("Fail copy data to gpu\n");
+        printf("Couldn't copy data to gpu\n");
 
     rc = cudaMallocPitch(&devOut, &pitchOut, patchs_x * sizeof(uint8_t), patchs_y);
     if (rc)
@@ -171,5 +171,65 @@ void average_pooling(const uint8_t* sobel_x, const uint8_t* sobel_y, uint8_t *ou
 
     cudaFree(devSobelX);
     cudaFree(devSobelY);
+    cudaFree(devOut);
+}
+
+__global__ void compute_threshold(const uint8_t* in,
+                                    uint8_t *out, int width, int height,
+                                    int pitchIn, int pitchOut, uint8_t value) {
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
+}
+
+
+
+void threshold(const uint8_t* buffer, uint8_t *output, int width,
+                int height, int stride, uint8_t value) {
+    cudaError_t rc = cudaSuccess;
+
+    // Allocate device memory
+    uint8_t* devIn;
+    uint8_t* devOut;
+    size_t pitchIn, pitchOut;
+
+    rc = cudaMallocPitch(&devIn, &pitchIn, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail buffer allocation\n");
+
+    rc = cudaMemcpy2D(devIn, pitchIn, buffer, stride, width, height, cudaMemcpyHostToDevice);
+    if (rc)
+        printf("Couldn't copy data to gpu\n");
+
+    rc = cudaMallocPitch(&devOut, &pitchOut, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail buffer allocation\n");
+
+    {
+        int bsize = 32;
+        int w     = std::ceil((float)width / bsize);
+        int h     = std::ceil((float)height / bsize);
+
+        dim3 dimBlock(bsize, bsize);
+        dim3 dimGrid(w, h);
+        compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut, value);
+        cudaDeviceSynchronize();
+
+        if (cudaPeekAtLastError())
+            printf("thresholding Error\n");
+
+    }
+
+    // Copy back to main memory
+    rc = cudaMemcpy2D(output, stride * sizeof(uint8_t), devOut, pitchOut,
+                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
+    if (rc)
+        printf("Unable to copy buffer back to memory\n");
+
+    cudaFree(devIn);
     cudaFree(devOut);
 }
