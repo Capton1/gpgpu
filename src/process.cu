@@ -99,18 +99,19 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
     __syncthreads();
 
     // Collaborative reduction
-    for(int stride = blockDim.x; stride >= 1; stride /= 2) {
-        if (ty < stride) {
-            partialSum[ty][tx] += partialSum[ty+ stride][tx];
-            partialSum[ty][bs + tx] += partialSum[ty+ stride][bs + tx];
+    int val;
+    for(int stride = 16; stride >= 1; stride /= 2) {
+        val = 0;
+        if(threadIdx.x < stride && threadIdx.y < stride) {
+            val += partialSum[threadIdx.y + stride][threadIdx.x + stride];
         }
-        __syncthreads();
-    }
-    
-    for(int stride = blockDim.y; stride >= 1; stride /= 2) {
-        if (tx < stride) {
-            partialSum[ty][tx] += partialSum[ty][tx+ stride];
+        if (threadIdx.x < stride) {
+            val += partialSum[threadIdx.y][threadIdx.x + stride];
         }
+        if (threadIdx.y < stride) {
+            val += partialSum[threadIdx.y + stride][threadIdx.x];
+        }
+        partialSum[threadIdx.y][threadIdx.x] += val;
         __syncthreads();
     }
 
@@ -344,7 +345,7 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
     threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride_out, devResp, pitchResp,
+    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchOutput,
                         new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
