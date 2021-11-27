@@ -94,10 +94,10 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
     __syncthreads();
 
     // Collaborative reduction
-    for(int stride_x = 1; stride_x <= blockDim.x; stride_x *= 2) {
-        for(int stride_y = 1; stride_y <= blockDim.y; stride_y *= 2) {
-            if(tx % stride_x == 0 && ty % stride_y == 0)
-                partialSum[2*tx][2*ty] += partialSum[2*tx + stride_x][2*ty + stride_y];
+    for(int stride_x = blockDim.x; stride_x >= 1; stride_x /= 2) {
+        for(int stride_y = blockDim.y; stride_y >= 1; stride_y /= 2) {
+            if(threadIdx.x < stride_x && threadIdx.y < stride_y)
+                partialSum[threadIdx.x][threadIdx.y] += partialSum[threadIdx.x + stride_x][threadIdx.y + stride_y];
             __syncthreads();
         }
     }
