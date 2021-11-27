@@ -70,29 +70,30 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
                                     uint8_t *out, int patchs_x, int patchs_y,
                                     int pitchX, int pitchY, int pitchOut) {
 
-    __shared__ int local_sum;
-    if(threadIdx.x == 0 && threadIdx.y) local_sum = 0;
-    __syncthreads();
-
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (x < patchs_x * POOLSIZE || y < patchs_y * POOLSIZE)
-        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
+    if (x >= patchs_x || y >= patchs_y) return;
 
-    __syncthreads();
-    if(threadIdx.x == 0 && threadIdx.y) {
-        x /= POOLSIZE;
-        y /= POOLSIZE;
-        float mean = local_sum/(POOLSIZE*POOLSIZE);
-        out[x + y * pitchOut] = mean;
+    float sumX = 0;
+    float sumY = 0;
+    int index_y = y * POOLSIZE;
+    int index_x = x * POOLSIZE;
+    for (int i = index_x; i <= index_x + POOLSIZE; i++) {
+        for (int j = index_y; j <= index_y + POOLSIZE; j++) {
+            sumX += sobelx[(j * pitchX) + i];
+            sumY += sobely[(j * pitchY) + i];
+        }
     }
+    sumX /= (POOLSIZE*POOLSIZE);
+    sumY /= (POOLSIZE*POOLSIZE);
+    out[x + y * pitchOut] = sumX - sumY;
 }
 
 void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
                      int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
-    int bsize = POOLSIZE;
+    int bsize = 1;
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(patchs_x, patchs_y);
     compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
@@ -312,7 +313,7 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
     threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchOutput,
+    rc = cudaMemcpy2D(output, stride_out, devResp, pitchResp,
                         new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
