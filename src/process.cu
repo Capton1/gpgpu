@@ -66,60 +66,33 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
         printf("sobel filter Error\n");
 }
 
-
 __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely,
                                     uint8_t *out, int patchs_x, int patchs_y,
                                     int pitchX, int pitchY, int pitchOut) {
 
-    __shared__ int partialSum[POOLSIZE+1][POOLSIZE+1];
-    int orig_width = patchs_x * POOLSIZE;
-    int orig_height = patchs_y * POOLSIZE;
-
-    // Colborative loading
-    int tx = threadIdx.x;
-    int startx = 2 * blockIdx.x * blockDim.x;
-    int x = startx + tx;
-
-    int ty = threadIdx.y;
-    int starty = 2 * blockIdx.y * blockDim.y;
-    int y = starty + ty;
-
-    partialSum[ty][tx] = 0;
-    if (x < orig_width || y < orig_height)
-        partialSum[ty][tx] = sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x];
-    
-    x += blockDim.x;
-    y += blockDim.y;
-    partialSum[blockDim.y + ty][blockDim.x + tx] = 0;
-    if (x < orig_width || y < orig_height)
-        partialSum[blockDim.y + ty][blockDim.x + tx] = sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x];
+    __shared__ int local_sum;
+    if(threadIdx.x == 0 && threadIdx.y) local_sum = 0;
     __syncthreads();
 
-    // Collaborative reduction
-    
-    for(int stride_y = blockDim.y; stride_y >= 1; stride_y /= 2) {
-        for(int stride_x = blockDim.x; stride_x >= 1; stride_x /= 2) {
-            if(threadIdx.x < stride_x && threadIdx.y < stride_y)
-                partialSum[threadIdx.y][threadIdx.x] += partialSum[threadIdx.y + stride_y][threadIdx.x + stride_x];
-            __syncthreads();
-        }
-    }
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    // Write to global mem
-    if(tx == 0 && ty == 0) {
+    if (x < patchs_x * POOLSIZE || y < patchs_y * POOLSIZE)
+        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
+
+    __syncthreads();
+    if(threadIdx.x == 0 && threadIdx.y) {
         x /= POOLSIZE;
         y /= POOLSIZE;
-        float mean = partialSum[ty][tx]/(POOLSIZE*POOLSIZE);
+        float mean = local_sum/(POOLSIZE*POOLSIZE);
         out[x + y * pitchOut] = mean;
     }
 }
 
-
 void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
                      int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
-    
-    int bsize = std::ceil((float)POOLSIZE / 2);
+    int bsize = POOLSIZE;
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(patchs_x, patchs_y);
     compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,

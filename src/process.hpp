@@ -1,7 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-#define POOLSIZE 31
+#define POOLSIZE 32
 
 void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
                     int pitchIn, int pitchOut, char type);
