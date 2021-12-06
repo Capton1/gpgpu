@@ -99,19 +99,18 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
     __syncthreads();
 
     // Collaborative reduction
-    int val;
-    for(int stride = 16; stride >= 1; stride /= 2) {
-        val = 0;
-        if(threadIdx.x < stride && threadIdx.y < stride) {
-            val += partialSum[threadIdx.y + stride][threadIdx.x + stride];
+    for(int stride = bs; stride >= 1; stride /= 2) {
+        if (ty < stride) {
+            partialSum[ty][tx] += partialSum[ty+ stride][tx];
+            partialSum[ty][bs + tx] += partialSum[ty+ stride][bs + tx];
         }
-        if (threadIdx.x < stride) {
-            val += partialSum[threadIdx.y][threadIdx.x + stride];
+        __syncthreads();
+    }
+    
+    for(int stride = bs; stride >= 1; stride /= 2) {
+        if (tx < stride) {
+            partialSum[ty][tx] += partialSum[ty][tx+ stride];
         }
-        if (threadIdx.y < stride) {
-            val += partialSum[threadIdx.y + stride][threadIdx.x];
-        }
-        partialSum[threadIdx.y][threadIdx.x] += val;
         __syncthreads();
     }
 
