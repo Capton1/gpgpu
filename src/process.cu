@@ -1,33 +1,47 @@
 #include "process.hpp"
 #include <stdio.h>
 
+#define TILE_WIDTH 32 + 2 // 32 + r*2
+
 __global__ void sobel_x_filter(const uint8_t* in, uint8_t *out, int width,
                             int height, int pitchIn, int pitchOut) {
 
     int kernel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     int r = 1;
 
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
+    __shared__ uint8_t tile[TILE_WIDTH][TILE_WIDTH];
 
-    if (x < r || x >= width - r) return;
-    if (y < r || y >= height - r) return;
+    int in_x = blockDim.x * blockIdx.x + threadIdx.x;
+    int in_y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    int sum = 0.0;
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-            sum += kernel[ky+r][kx+r] * pixel;
+    if (in_x >= width || in_y >= height) return;
+
+    const uint8_t* block_ptr = in + blockIdx.x * blockDim.x
+                            + (blockIdx.y * blockDim.y) * pitchIn;
+    for (int i = threadIdx.y; i < TILE_WIDTH; i += blockDim.y)
+        for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x)
+            if (i + blockIdx.y * blockDim.y < r || j + blockIdx.x * blockDim.x < r)
+                tile[i][j] = 0;
+            else if (i + blockIdx.y * blockDim.y >= height - r || j + blockIdx.x * blockDim.x >= width - r)
+                tile[i][j] = 0;
+            else
+                tile[i][j] = block_ptr[(i - r) * pitchIn + j - r];
+    __syncthreads();
+
+    int sum = 0;
+    for (int kx = 0; kx < 3; kx++) {
+        for (int ky = 0; ky < 3; ky++) {
+            sum += kernel[ky][kx] * tile[threadIdx.y + ky][threadIdx.x + kx];
         }
     }
-
-    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
+    out[in_x + in_y * pitchOut] = (sum > 0) ? sum : -sum;
 }
 
-__global__ void sobel_y_filter(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
+__global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
+                            int width, int height, int pitchIn,
+                            int pitchX, int pitchY) {
 
-    int kernel[3][3] = {{1, 2, 1}, {0, 0, 0}, {-1, -2, -1}};
+    int kernel_x[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     int r = 1;
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -36,19 +50,23 @@ __global__ void sobel_y_filter(const uint8_t* in, uint8_t *out, int width,
     if (x < r || x >= width - r) return;
     if (y < r || y >= height - r) return;
 
-    int sum = 0;
+    int sumX = 0;
+    int sumY = 0;
     for (int kx = -r; kx <= r; kx++) {
         for (int ky = -r; ky <= r; ky++) {
             int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-            sum += kernel[ky+r][kx+r] * pixel;
+            sumX += kernel_x[ky+r][kx+r] * pixel;
+            sumY += kernel_x[kx+r][2-(ky+r)] * pixel;
         }
     }
 
-    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
+    out_x[x + y * pitchX] = (sumX > 0) ? sumX : -sumX;
+    out_y[x + y * pitchY] = (sumY > 0) ? sumY : -sumY;
 }
 
-void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
-                    int pitchIn, int pitchOut, char type) {
+void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
+                    int width, int height, int pitchIn,
+                    int pitchX, int pitchY) {
 
     int bsize = 32;
     int w     = std::ceil((float)width / bsize);
@@ -56,10 +74,7 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
 
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(w, h);
-    if (type == 'x')
-        sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
-    else
-        sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
+    sobel_xy<<<dimGrid, dimBlock>>>(devIn, devX, devY, width, height, pitchIn, pitchX, pitchY);
     cudaDeviceSynchronize();
 
     if (cudaPeekAtLastError())
@@ -303,17 +318,15 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
         printf("Couldn't copy img to gpu\n");
 
 
-    // Sobel X
+    // Sobel X & Y
     rc = cudaMallocPitch(&devSobelX, &pitchX, width * sizeof(uint8_t), height);
     if (rc)
-        printf("Fail devIn allocation\n");
-    sobel_filter(devImg, devSobelX, width, height, pitchImg, pitchX, 'x');
-
-    // Sobel Y
+        printf("Fail devSobelX allocation\n");
     rc = cudaMallocPitch(&devSobelY, &pitchY, width * sizeof(uint8_t), height);
     if (rc)
-        printf("Fail devIn allocation\n");
-    sobel_filter(devImg, devSobelY, width, height, pitchImg, pitchY, 'y');
+        printf("Fail devSobelY allocation\n");
+
+    sobel_filter(devImg, devSobelX, devSobelY, width, height, pitchImg, pitchX, pitchY);
 
     // Average Pooling
     int new_width = std::floor((float)width / POOLSIZE);
@@ -344,8 +357,8 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
     threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchOutput,
-                        new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
+    rc = cudaMemcpy2D(output, width, devSobelY, pitchY,
+                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
 
