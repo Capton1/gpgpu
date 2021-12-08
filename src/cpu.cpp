@@ -247,6 +247,7 @@ void post_processing(png_bytep *src, png_bytep *des, unsigned int postproc_size,
         }
     }
 
+    free_image(se, postproc_size);
 }
 
 void response(png_bytep *src1, png_bytep *src2, png_bytep *des, unsigned int patch_y, unsigned int patch_x) {
