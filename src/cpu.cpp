@@ -217,7 +217,6 @@ void post_processing(png_bytep *src, png_bytep *des, unsigned int postproc_size,
                 for (unsigned int j = x - postproc_size / 2; j < x + postproc_size / 2; j++) {
                     if ((&(se[y - i + postproc_size / 2][x - j + postproc_size / 2]))[0] == 255) {
                         int curr = (&(src[i][j]))[0];
-                        //printf("%d \n", curr);
                         min = std::min(min, curr);
                     }
                 }
@@ -337,8 +336,7 @@ void process_cpu(const char* img_path) {
 
     response(pool_sobx1, pool_soby1, resp1, patchs_y, patchs_x);
     write_png_file(resp1, "../collective_database/resp1.png", patchs_y, patchs_x);
-    free_image(pool_sobx1, patchs_y);
-    free_image(pool_soby1, patchs_y);
+
 
     int postproc_size = 5;
     png_bytep *resp1_postproc = (png_bytep *) malloc(sizeof(png_bytep) * patchs_y);
