@@ -9,6 +9,8 @@ int main(int argc, char** argv) {
     (void) argv;
 
     std::string filename = "output.png";
+    std::string str = "../collective_database/test.png";
+    const char *cstr = str.c_str();
     std::string mode = "CPU";
 
     CLI::App app{"code"};
@@ -19,7 +21,7 @@ int main(int argc, char** argv) {
     // Rendering
     if (mode == "CPU") {
         printf("CPU\n");
-        process_cpu("../train/PXL_20211101_175643604.jpg");
+        process_cpu(cstr);
     }
     else if (mode == "GPU") {
         printf("GPU\n");

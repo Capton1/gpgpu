@@ -8,23 +8,24 @@ FetchContent_Declare(
         URL https://github.com/CLIUtils/CLI11/archive/v1.9.1.tar.gz
 )
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall")
+FetchContent_Declare(
+        spdlog
+        URL https://github.com/gabime/spdlog/archive/v1.9.2.tar.gz
+)
+
+FetchContent_MakeAvailable(spdlog)
+FetchContent_MakeAvailable(CLI11)
+
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR} )
+
+find_package(PNG REQUIRED)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-set(OpenCV_DIR ${CMAKE_MODULE_PATH}
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules/)
-
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules/)
-
-message(${CMAKE_MODULE_PATH})
-set("OpenCV_DIR" "/usr/share/OpenCV")
-find_package(OpenCV REQUIRED)
-include_directories(${OpenCV_INCLUDE_DIRS})
-FetchContent_MakeAvailable(CLI11)
 add_executable(main src/main.cpp src/cpu.cpp)
 target_compile_features(main PUBLIC cxx_std_17)
-target_link_libraries(main PRIVATE CLI11::CLI11 ${OpenCV_LIBS})
+target_link_libraries(main PRIVATE CLI11::CLI11 PNG::PNG CLI11::CLI11 spdlog::spdlog)
 
 #find_package(PNG REQUIRED)
 
