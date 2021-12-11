@@ -23,7 +23,7 @@ find_package(PNG REQUIRED)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-add_executable(main src/main.cpp src/cpu.cpp)
+add_executable(main src/main.cpp src/cpu.cpp src/utils.cpp src/image.cpp)
 target_compile_features(main PUBLIC cxx_std_17)
 target_link_libraries(main PRIVATE CLI11::CLI11 PNG::PNG CLI11::CLI11 spdlog::spdlog)
 
