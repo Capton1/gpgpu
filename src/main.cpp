@@ -11,6 +11,7 @@ int main(int argc, char** argv) {
     std::string filename = "output.png";
     std::string str = "../collective_database/test.png";
     const char *cstr = str.c_str();
+    
     std::string mode = "CPU";
 
     CLI::App app{"code"};
@@ -26,4 +27,16 @@ int main(int argc, char** argv) {
     else if (mode == "GPU") {
         printf("GPU\n");
     }
+    
+    // Evaluate
+    int pool_size = 31;
+
+    Image* output = read_png("../collective_database/output.png");
+    Image* scaled_output = image_scaler(output, pool_size+1);
+    write_png(scaled_output, "../collective_database/scaled_output.png");
+
+    Image* gt = read_png("../collective_database/test-GT.png");
+    
+    float iou = compute_IoU(gt, scaled_output);
+    printf("Metrics: IoU: %f\n", iou);
 }
