@@ -3,65 +3,56 @@
 
 #define TILE_WIDTH 32 + 2 // 32 + r*2
 
-__global__ void sobel_x_filter(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
+__global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
+                            int width, int height, int pitchIn,
+                            int pitchX, int pitchY) {
 
     int kernel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     int r = 1;
 
     __shared__ uint8_t tile[TILE_WIDTH][TILE_WIDTH];
 
-    int in_x = blockDim.x * blockIdx.x + threadIdx.x;
-    int in_y = blockDim.y * blockIdx.y + threadIdx.y;
+    const int block_x = blockDim.x * blockIdx.x;
+    const int block_y = blockDim.y * blockIdx.y;
+
+    int in_x = block_x + threadIdx.x;
+    int in_y = block_y + threadIdx.y;
 
     if (in_x >= width || in_y >= height) return;
 
     const uint8_t* block_ptr = in + blockIdx.x * blockDim.x
                             + (blockIdx.y * blockDim.y) * pitchIn;
     for (int i = threadIdx.y; i < TILE_WIDTH; i += blockDim.y)
-        for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x)
-            if (i + blockIdx.y * blockDim.y < r || j + blockIdx.x * blockDim.x < r)
-                tile[i][j] = 0;
-            else if (i + blockIdx.y * blockDim.y >= height - r || j + blockIdx.x * blockDim.x >= width - r)
-                tile[i][j] = 0;
-            else
-                tile[i][j] = block_ptr[(i - r) * pitchIn + j - r];
-    __syncthreads();
+        for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x) {
+            int padded_y = i - r;
+            int padded_x = j - r;
 
-    int sum = 0;
-    for (int kx = 0; kx < 3; kx++) {
-        for (int ky = 0; ky < 3; ky++) {
-            sum += kernel[ky][kx] * tile[threadIdx.y + ky][threadIdx.x + kx];
+            // replicate padding
+            if (padded_y + block_y < 0)
+                padded_y += r;
+            if (padded_x + block_x < 0)
+                padded_x += r;
+            if (padded_y + block_y >= height)
+                padded_y += r;
+            if (padded_x + block_x >= width)
+                padded_x += r;
+
+            tile[i][j] = block_ptr[padded_y * pitchIn + padded_x];
         }
-    }
-    out[in_x + in_y * pitchOut] = (sum > 0) ? sum : -sum;
-}
-
-__global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
-                            int width, int height, int pitchIn,
-                            int pitchX, int pitchY) {
-
-    int kernel_x[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
-    int r = 1;
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x < r || x >= width - r) return;
-    if (y < r || y >= height - r) return;
+    __syncthreads();
 
     int sumX = 0;
     int sumY = 0;
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-            sumX += kernel_x[ky+r][kx+r] * pixel;
-            sumY += kernel_x[kx+r][2-(ky+r)] * pixel;
+    for (int kx = 0; kx < 3; kx++) {
+        for (int ky = 0; ky < 3; ky++) {
+            int pixel = tile[threadIdx.y + ky][threadIdx.x + kx];
+            sumX += kernel[ky][kx] * pixel;
+            sumY += kernel[kx][2-ky] * pixel;
         }
     }
 
-    out_x[x + y * pitchX] = (sumX > 0) ? sumX : -sumX;
-    out_y[x + y * pitchY] = (sumY > 0) ? sumY : -sumY;
+    out_x[in_x + in_y * pitchX] = (sumX > 0) ? sumX : -sumX;
+    out_y[in_x + in_y * pitchY] = (sumY > 0) ? sumY : -sumY;
 }
 
 void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
@@ -74,6 +65,7 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
 
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(w, h);
+    //sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devX, width, height, pitchIn, pitchX);
     sobel_xy<<<dimGrid, dimBlock>>>(devIn, devX, devY, width, height, pitchIn, pitchX, pitchY);
     cudaDeviceSynchronize();
 
