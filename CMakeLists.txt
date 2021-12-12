@@ -1,5 +1,5 @@
 cmake_minimum_required (VERSION 3.14)
-project (GPGPU CUDA CXX)
+project (GPGPU CUDA CXX) # remove CUDA if not installed
 include(FetchContent)
 
 FetchContent_Declare(
@@ -22,8 +22,9 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH}
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake-modules/)
 
 message(${CMAKE_MODULE_PATH})
-find_package(CUDA REQUIRED)
+find_package(CUDA REQUIRED) # remove this line if CUDA is not installed
 
+# CPU only : comment the 5 following lines
 add_library(renderer)
 target_compile_features(renderer PUBLIC cxx_std_14)
 target_link_libraries(renderer PRIVATE CLI11::CLI11)
@@ -33,4 +34,4 @@ set_target_properties(renderer PROPERTIES CUDA_SEPARABLE_COMPILATION ON)
 FetchContent_MakeAvailable(CLI11)
 add_executable(main src/main.cpp src/cpu.cpp src/utils.cpp)
 target_compile_features(main PUBLIC cxx_std_14)
-target_link_libraries(main PRIVATE freeimage.so CLI11::CLI11 renderer)
+target_link_libraries(main PRIVATE freeimage.so CLI11::CLI11 renderer) # remove 'renderer' to run CPU only
