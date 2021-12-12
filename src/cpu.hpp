@@ -12,5 +12,6 @@ FIBITMAP* response(FIBITMAP *image1, FIBITMAP *image2);
 FIBITMAP* threshold(FIBITMAP *image);
 
 void process_cpu(FIBITMAP *grey);
+void benchmark_cpu(FIBITMAP *grey);
 
 #endif

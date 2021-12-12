@@ -13,11 +13,13 @@ int main(int argc, char** argv) {
     (void) argv;
 
     std::string filename = "../collective_database/test.png";
+    int benchmark = 0;
     std::string mode = "CPU";
 
     CLI::App app{"code"};
     app.add_option("-i", filename, "Input image");
     app.add_set("-m", mode, {"GPU", "CPU"}, "Either 'GPU' or 'CPU'");
+    app.add_option("-b", benchmark, "Evaluate");
     CLI11_PARSE(app, argc, argv);
 
     const char *filename_c = filename.c_str();
@@ -33,7 +35,14 @@ int main(int argc, char** argv) {
     // Rendering
     if (mode == "CPU") {
         printf("CPU\n");
-        process_cpu(grey);
+        if (benchmark)
+        {
+            benchmark_cpu(grey);
+        }
+        else
+        {
+            process_cpu(grey);
+        }
     }
     else if (mode == "GPU") {
         int output_width = width/POOLSIZE;

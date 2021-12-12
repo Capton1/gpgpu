@@ -1,5 +1,7 @@
 #include "cpu.hpp"
 #include <algorithm>
+#include <stdio.h>
+#include <chrono>
 
 #define DEBUG false
 
@@ -258,83 +260,84 @@ void process_cpu(FIBITMAP *grey) {
 }
 
 
+void benchmark_cpu(FIBITMAP *grey) {
+    using std::chrono::high_resolution_clock;
+    using std::chrono::duration_cast;
+    using std::chrono::duration;
+    using std::chrono::milliseconds;
 
-using std::chrono::high_resolution_clock;
-using std::chrono::duration_cast;
-using std::chrono::duration;
-using std::chrono::milliseconds;
-
-void benchmarck_cpu(const char* img_path) {
-    
     std::chrono::high_resolution_clock::time_point t_start, t_end;
-    float duration;
+    int t_elapsed;
 
-    /* Read Image */
-    t_start = high_resolution_clock::now();
-    // Start
-    Image* image = read_png(img_path);
-    // End
-    t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("read_png(): %fms\n", duration);
-    write_png(image, "../collective_database/gray.png");
-
-    /* Compute Sobel X & Y */
-    t_start = high_resolution_clock::now();
-    // Start
-    Image* image_sobel_x = sobel(image, 'x');
-    Image* image_sobel_y = sobel(image, 'y');
-    // End
-    t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("image_sobel_x() + image_sobel_y(): %fms\n", duration);
-    write_png(image_sobel_x, "../collective_database/sobel_x.png");
-    write_png(image_sobel_y, "../collective_database/sobel_y.png");
-
-    int pool_size = 31;
-
-    /* Average Pooling X & Y */
-    t_start = high_resolution_clock::now();
-    // Start
-    Image* image_pool_sobel_x = average_pooling(image_sobel_x, pool_size);
-    Image* image_pool_sobel_y = average_pooling(image_sobel_y, pool_size);
-    // End
-    t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("average_pooling(image_sobel_x) + average_pooling(image_sobel_y): %fms\n", duration);
-    write_png(image_pool_sobel_x, "../collective_database/pool_sobel_x.png");
-    write_png(image_pool_sobel_y, "../collective_database/pool_sobel_y.png");
-
-    /* Response */
-    t_start = high_resolution_clock::now();
-    // Start
-    Image* image_res = response(image_pool_sobel_x, image_pool_sobel_y);
-    // End
-    t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("response(): %fms\n", duration);
-    write_png(image_res, "../collective_database/res.png");
-
+    int pool_size = 32;
     int pp_size = 5;
 
-    /* Post Processing */
+    
+    /* Sobel */
     t_start = high_resolution_clock::now();
-    // Start
-    Image* image_pp = post_processing(image_res, pp_size);
-    // End
+    
+    FIBITMAP* image_sobel_x = sobel(grey, 'x');
+    FIBITMAP* image_sobel_y = sobel(grey, 'y');
+    
     t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("post_processing(): %fms\n", duration);
-    write_png(image_pp, "../collective_database/res_pp.png");
+    t_elapsed = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("sobel():           %dms\n", t_elapsed);
 
-    /* Threshold */
+    /* Average Pooling */
     t_start = high_resolution_clock::now();
-    // Start
-    Image* image_output = threshold(image_pp);
-    // End
+
+    FIBITMAP* image_pool_sobel_x = average_pooling(image_sobel_x, pool_size);
+    FIBITMAP* image_pool_sobel_y = average_pooling(image_sobel_y, pool_size);
+    
     t_end = high_resolution_clock::now();
-    duration = duration_cast<milliseconds>(t_end - t_start).count();
-    printf("threshold(): %fms\n", duration);
-    write_png(image_output, "../collective_database/output.png");
+    t_elapsed = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("average_pooling(): %dms\n", t_elapsed);
+
+    /* Response */    
+    t_start = high_resolution_clock::now();
+
+    FIBITMAP* image_res = response(image_pool_sobel_x, image_pool_sobel_y);
+    
+    t_end = high_resolution_clock::now();
+    t_elapsed = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("average_pooling(): %dms\n", t_elapsed);
+
+    /* Post Processing */    
+    t_start = high_resolution_clock::now();
+
+    FIBITMAP* image_pp = post_processing(image_res, pp_size);
+    
+    t_end = high_resolution_clock::now();
+    t_elapsed = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("post_processing(): %dms\n", t_elapsed);
+
+    /* Threshold */    
+    t_start = high_resolution_clock::now();
+
+    FIBITMAP* image_output = threshold(image_pp);
+    
+    t_end = high_resolution_clock::now();
+    t_elapsed = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("threshold():       %dms\n", t_elapsed);
+
+    if (DEBUG) {
+        FreeImage_Save(FIF_PNG, grey, "../collective_database/gray.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_x, "../collective_database/sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_y, "../collective_database/sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../collective_database/pool_sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../collective_database/pool_sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_res, "../collective_database/res.png", 0);
+        FreeImage_Save(FIF_PNG, image_pp, "../collective_database/res_pp.png", 0);
+    }
+
+    FreeImage_Save(FIF_PNG, image_output, "../collective_database/output.png", 0);
+
+    FreeImage_Unload(image_sobel_x);
+    FreeImage_Unload(image_sobel_y);
+    FreeImage_Unload(image_pool_sobel_x);
+    FreeImage_Unload(image_pool_sobel_y);
+    FreeImage_Unload(image_res);
+    FreeImage_Unload(image_pp);
+    FreeImage_Unload(image_output);
+
 }
-
