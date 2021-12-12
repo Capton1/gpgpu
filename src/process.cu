@@ -118,6 +118,89 @@ void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t
 }
 
 
+__global__ void dilation(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
+
+    int r = 2;
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x < r || x >= width - r) return;
+    if (y < r || y >= height - r) return;
+
+    uint8_t current_val = 0;
+    for (int ky = -r + 1; ky < r; ky++) { // first and last line of kernel are zeros
+        for (int kx = -r; kx <= r; kx++) {
+            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
+            if (prop_val > current_val)
+                current_val = prop_val;
+        }
+    }
+
+    out[x + y * pitchOut] = current_val;
+}
+
+__global__ void erosion(const uint8_t* in, uint8_t *out, int width,
+                            int height, int pitchIn, int pitchOut) {
+
+    int r = 2;
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x < r || x >= width - r) return;
+    if (y < r || y >= height - r) return;
+
+    uint8_t current_val = 255;
+    for (int ky = -r + 1; ky < r; ky++) {
+        for (int kx = -r; kx <= r; kx++) {
+            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
+            if (prop_val < current_val)
+                current_val = prop_val;
+        }
+    }
+
+    out[x + y * pitchOut] = current_val;
+}
+
+
+void morph_closure(const uint8_t* devIn, uint8_t *devOut,
+                    int width, int height, int pitchIn, int pitchOut) {
+    cudaError_t rc = cudaSuccess;
+
+    // Allocate device memory
+    uint8_t* devTmp;
+    size_t pitchTmp;
+
+
+    rc = cudaMallocPitch(&devTmp, &pitchTmp, width * sizeof(uint8_t), height);
+    if (rc)
+        printf("Fail tmp buffer allocation\n");
+
+    {
+        int bsize = 32;
+        int w     = std::ceil((float)width / bsize);
+        int h     = std::ceil((float)height / bsize);
+
+        dim3 dimBlock(bsize, bsize);
+        dim3 dimGrid(w, h);
+
+        dilation<<<dimGrid, dimBlock>>>(devIn, devTmp, width, height, pitchIn, pitchTmp);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("dilation Error\n");
+        
+        erosion<<<dimGrid, dimBlock>>>(devTmp, devOut, width, height, pitchTmp, pitchOut);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("erosion Error\n");
+    }
+
+    cudaFree(devTmp);
+}
+
+
 __global__ void compute_max(const uint8_t* in, unsigned int *max,
                             int width, int height, int pitchIn) {
 
@@ -172,97 +255,6 @@ void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
 
     }
     cudaFree(devMax);
-}
-
-
-__global__ void dilation(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
-
-    int kernel[5][5] = {{0, 0, 0, 0, 0}, {255, 255, 255, 255, 255}, {255, 255, 255, 255, 255},
-                        {255, 255, 255, 255, 255}, {0, 0, 0, 0, 0}};
-    int r = 2;
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    uint8_t current_val = in[x + y * pitchIn];
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            if (kernel[ky+r][kx+r] == 0) continue;
-            if (y + ky < 0 && y + ky >= height) continue;
-            if (x + kx < 0 && x + kx >= width) continue;
-            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
-            if (prop_val > current_val)
-                current_val = prop_val;
-        }
-    }
-
-    out[x + y * pitchOut] = current_val;
-}
-
-__global__ void erosion(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
-
-    int kernel[5][5] = {{0, 0, 0, 0, 0}, {1, 1, 1, 1, 1}, {1, 1, 1, 1, 1},
-                        {1, 1, 1, 1, 1}, {0, 0, 0, 0, 0}};
-    int r = 2;
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    uint8_t current_val = in[x + y * pitchIn];
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            if (kernel[ky+r][kx+r] == 0) continue;
-            if (y + ky < 0 && y + ky >= height) continue;
-            if (x + kx < 0 && x + kx >= width) continue;
-            int prop_val = in[((y + ky) * pitchIn) + (x + kx)];
-            if (prop_val < current_val)
-                current_val = prop_val;
-        }
-    }
-
-    out[x + y * pitchOut] = current_val;
-}
-
-
-void morph_closure(const uint8_t* devIn, uint8_t *devOut,
-                    int width, int height, int pitchIn, int pitchOut) {
-    cudaError_t rc = cudaSuccess;
-
-    // Allocate device memory
-    uint8_t* devTmp;
-    size_t pitchTmp;
-
-
-    rc = cudaMallocPitch(&devTmp, &pitchTmp, width * sizeof(uint8_t), height);
-    if (rc)
-        printf("Fail tmp buffer allocation\n");
-
-    {
-        int bsize = 32;
-        int w     = std::ceil((float)width / bsize);
-        int h     = std::ceil((float)height / bsize);
-
-        dim3 dimBlock(bsize, bsize);
-        dim3 dimGrid(w, h);
-
-        dilation<<<dimGrid, dimBlock>>>(devIn, devTmp, width, height, pitchIn, pitchTmp);
-        cudaDeviceSynchronize();
-        if (cudaPeekAtLastError())
-            printf("dilation Error\n");
-        
-        erosion<<<dimGrid, dimBlock>>>(devTmp, devOut, width, height, pitchTmp, pitchOut);
-        cudaDeviceSynchronize();
-        if (cudaPeekAtLastError())
-            printf("erosion Error\n");
-    }
-
-    cudaFree(devTmp);
 }
 
 
