@@ -1,25 +1,16 @@
 #ifndef CPU_HPP
 #define CPU_HPP
 
-#include <string>
-#include <stdexcept>
-#include <png.h>
-#include <cstring>
-#include <cassert>
-#include <stdio.h>
-#include <math.h>
-#include <chrono>
-#include "utils.hpp"
-#include "image.hpp"
+#include <FreeImage.h>
 
 #define PNG_DEBUG 1
 
-Image* sobel(Image *image, const char type);
-Image* average_pooling(Image *image, unsigned int pool_size);
-Image* post_processing(Image *image, unsigned int postproc_size);
-Image* response(Image *image1, Image *image2);
-Image* threshold(Image *image);
+FIBITMAP* sobel(FIBITMAP *image, const char type);
+FIBITMAP* average_pooling(FIBITMAP *image, unsigned int pool_size);
+FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size);
+FIBITMAP* response(FIBITMAP *image1, FIBITMAP *image2);
+FIBITMAP* threshold(FIBITMAP *image);
 
-void process_cpu(const char* img_path);
+void process_cpu(FIBITMAP *grey);
 
 #endif

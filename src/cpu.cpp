@@ -1,82 +1,101 @@
 #include "cpu.hpp"
+#include <algorithm>
 
+#define DEBUG false
 
-Image* sobel(Image *image, const char type) {
-    Image *new_image = new Image(image->width, image->height);
+FIBITMAP* sobel(FIBITMAP *image, const char type) {
+
+    unsigned int width = FreeImage_GetWidth(image);
+    unsigned int height = FreeImage_GetHeight(image);
+    FIBITMAP *new_image = FreeImage_Allocate(width, height, 8);
 
     if (type == 'x') {
 
-        for(unsigned int y = 1; y < image->height - 1; y++) {
-            png_bytep row = image->img[y];
-            png_bytep row_b = image->img[y - 1];
-            png_bytep row_a = image->img[y + 1];
-            for(unsigned int x = 1; x < image->width - 1; x++) {
+        for(unsigned int y = 1; y < height - 1; y++) {
+            for(unsigned int x = 1; x < width - 1; x++) {
                 int sum = 0;
+                uint8_t value;
 
-                sum += (&(row_b[x - 1]))[0] * -1;
-                sum += (&(row_b[x + 1]))[0] * 1;
+                FreeImage_GetPixelIndex(image, x - 1, y - 1, &value);
+                sum += value * -1;
+                FreeImage_GetPixelIndex(image, x + 1, y - 1, &value);
+                sum += value * 1;
 
-                sum += (&(row[x - 1]))[0] * -2;
-                sum += (&(row[x + 1]))[0] * 2;
+                FreeImage_GetPixelIndex(image, x - 1, y, &value);
+                sum += value * -2;
+                FreeImage_GetPixelIndex(image, x + 1, y, &value);
+                sum += value * 2;
 
-                sum += (&(row_a[x - 1]))[0] * -1;
-                sum += (&(row_a[x + 1]))[0] * 1;
+                FreeImage_GetPixelIndex(image, x - 1, y + 1, &value);
+                sum += value * -1;
+                FreeImage_GetPixelIndex(image, x + 1, y + 1, &value);
+                sum += value * 1;
 
                 sum = std::abs(sum);
                 sum = std::max(0, std::min(sum, 255));
 
-                png_byte* ptr = &(new_image->img[y][x]);
-                ptr[0] = sum;
+                BYTE val = sum;
+                FreeImage_SetPixelIndex(new_image, x, y, &val);
             }
 
         }
     }
     else if (type == 'y') {
+        for(unsigned int y = 1; y < height - 1; y++) {
+            for(unsigned int x = 1; x < width - 1; x++) {
 
-        for(unsigned int y = 1; y < image->height - 1; y++) {
-            png_bytep row_b = image->img[y - 1];
-            png_bytep row_a = image->img[y + 1];
-            for(unsigned int x = 1; x < image->width - 1; x++) {
                 int sum = 0;
+                uint8_t value;
 
-                sum += (&(row_b[x - 1]))[0] * -1;
-                sum += (&(row_b[x]))[0] * -2;
-                sum += (&(row_b[x + 1]))[0] * -1;
+                FreeImage_GetPixelIndex(image, x - 1, y - 1, &value);
+                sum += value * -1;
+                FreeImage_GetPixelIndex(image, x, y - 1, &value);
+                sum += value * -2;
+                FreeImage_GetPixelIndex(image, x + 1, y - 1, &value);
+                sum += value * -1;
 
-                sum += (&(row_a[x - 1]))[0] * 1;
-                sum += (&(row_a[x]))[0] * 2;
-                sum += (&(row_a[x + 1]))[0] * 1;
+
+                FreeImage_GetPixelIndex(image, x - 1, y + 1, &value);
+                sum += value * 1;
+                FreeImage_GetPixelIndex(image, x, y + 1, &value);
+                sum += value * 2;
+                FreeImage_GetPixelIndex(image, x + 1, y + 1, &value);
+                sum += value * 1;
 
                 sum = std::abs(sum);
                 sum = std::max(0, std::min(sum, 255));
 
-                png_byte* ptr = &(new_image->img[y][x]);
-                ptr[0] = sum;
+                BYTE val = sum;
+                FreeImage_SetPixelIndex(new_image, x, y, &val);
             }
         }
-    }
-    else {
-        throw std::runtime_error("Invalid type");
     }
 
     return new_image;
 }
 
+FIBITMAP* average_pooling(FIBITMAP *image, unsigned int pool_size) {
+    unsigned int width = FreeImage_GetWidth(image);
+    unsigned int height = FreeImage_GetHeight(image);
 
-Image* average_pooling(Image *image, unsigned int pool_size) {
-    Image *new_image = new Image(image->width / pool_size, image->height / pool_size);
+    unsigned int new_width = width / pool_size;
+    unsigned int new_height = height / pool_size;
+    FIBITMAP *new_image = FreeImage_Allocate(new_width, new_height, 8);
 
-    for (unsigned int ii = 0; ii < new_image->height; ii++) {
-        for (unsigned int jj = 0; jj < new_image->width; jj++) {
+    for (unsigned int ii = 0; ii < new_height; ii++) {
+        for (unsigned int jj = 0; jj < new_width; jj++) {
             unsigned int sum = 0;
             int index_y = ii * pool_size;
             int index_x = jj * pool_size;
             for (unsigned int i = index_y; i < index_y + pool_size; i++) {
                 for (unsigned int j = index_x; j < index_x + pool_size; j++) {
-                    sum += (&(image->img[i][j]))[0];
+                    uint8_t value;
+                    FreeImage_GetPixelIndex(image, j, i, &value);
+                    sum += value;
                 }
             }
-            (&(new_image->img[ii][jj]))[0] = sum / (pool_size * pool_size);
+            BYTE val = sum / (pool_size * pool_size);
+            FreeImage_SetPixelIndex(new_image, jj, ii, &val);
         }
     }
     
@@ -84,130 +103,158 @@ Image* average_pooling(Image *image, unsigned int pool_size) {
 }
 
 
-Image* post_processing(Image *image, unsigned int postproc_size) {
-    Image *new_image = new Image(image->width, image->height);
-    Image *tmp = new Image(postproc_size, postproc_size);
+FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size) {
+
+    unsigned int width = FreeImage_GetWidth(image);
+    unsigned int height = FreeImage_GetHeight(image);
+
+    FIBITMAP *new_image = FreeImage_Allocate(width, height, 8);
+    FIBITMAP *buffer = FreeImage_Allocate(width, height, 8);
+    FIBITMAP *tmp = FreeImage_Allocate(postproc_size, postproc_size, 8);
 
     for (unsigned int i = postproc_size / 2 - 1; i < postproc_size / 2 + 2; i++) {
         for (unsigned int  j = 0; j < postproc_size; j++) {
-            (&(tmp->img[i][j]))[0] = 255;
+            BYTE val = 255;
+            FreeImage_SetPixelIndex(tmp, j, i, &val);
         }
     }
 
-    for(unsigned int y = postproc_size / 2; y < image->height - postproc_size / 2; y++) {
-        for(unsigned int x = postproc_size / 2; x < image->width - postproc_size / 2; x++) {
-            int min = 255;
-            for (unsigned int i = y - postproc_size / 2; i < y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j < x + postproc_size / 2; j++) {
-                    if ((&(tmp->img[y - i + postproc_size / 2][x - j + postproc_size / 2]))[0] == 255) {
-                        int curr = (&(image->img[i][j]))[0];
-                        min = std::min(min, curr);
+    for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
+        for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
+            uint8_t min = 255;
+            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
+                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
+                    uint8_t value;
+                    FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
+                    if (value == 255) {
+                        FreeImage_GetPixelIndex(image, j, i, &value);
+                        min = std::min(min, value);
                     }
                 }
             }
-            (&(new_image->img[y][x]))[0] = min;
+            BYTE val = min;
+            FreeImage_SetPixelIndex(buffer, x, y, &val);
         }
     }
 
-    for(unsigned int y = postproc_size / 2; y < image->height - postproc_size / 2; y++) {
-        for (unsigned int x = postproc_size / 2; x < image->width - postproc_size / 2; x++) {
-            (&(image->img[y][x]))[0] = (&(new_image->img[y][x]))[0];
-        }
-    }
-
-
-    for(unsigned int y = postproc_size / 2; y < image->height - postproc_size / 2; y++) {
-        for(unsigned int x = postproc_size / 2; x < image->width - postproc_size / 2; x++) {
-            int min = 0;
-            for (unsigned int i = y - postproc_size / 2; i < y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j < x + postproc_size / 2; j++) {
-                    if ((&(tmp->img[y - i + postproc_size / 2][x - j + postproc_size / 2]))[0] == 255) {
-                        int curr = (&(image->img[i][j]))[0];
-                        min = std::max(min, curr);
+    for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
+        for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
+            uint8_t min = 0;
+            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
+                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
+                    uint8_t value;
+                    FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
+                    if (value == 255) {
+                        FreeImage_GetPixelIndex(buffer, j, i, &value);
+                        min = std::max(min, value);
                     }
                 }
             }
-            (&(new_image->img[y][x]))[0] = min;
+            BYTE val = min;
+            FreeImage_SetPixelIndex(new_image, x, y, &val);
         }
     }
 
     return new_image;
 }
 
+FIBITMAP* response(FIBITMAP *image1, FIBITMAP *image2) {
 
-Image* response(Image *image1, Image *image2) {
-    Image *new_image = new Image(image1->width, image1->height);
+    unsigned int width = FreeImage_GetWidth(image1);
+    unsigned int height = FreeImage_GetHeight(image1);
+
+    FIBITMAP *new_image = FreeImage_Allocate(width, height, 8);
+
     // since all pixels are unsigned, values < 0 are replaced by 0
-    for (unsigned int y = 0; y < image1->height; y++) {
-        for (unsigned int x = 0; x < image1->width; x++) {
-            int sum = (&(image1->img[y][x]))[0] - (&(image2->img[y][x]))[0];
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
+            uint8_t value1;
+            FreeImage_GetPixelIndex(image1, x, y, &value1);
+            uint8_t value2;
+            FreeImage_GetPixelIndex(image2, x, y, &value2);
+            int sum = value1 - value2;
             sum = std::max(0, std::min(sum, 255));
-            (&(new_image->img[y][x]))[0] = sum;
+
+            uint8_t val = sum;
+            FreeImage_SetPixelIndex(new_image, x, y, &val);
         }
     }
     return new_image;
 }
 
 
-Image* threshold(Image *image) {
-    Image *new_image = new Image(image->width, image->height);
+FIBITMAP* threshold(FIBITMAP *image) {
 
-    char maxval = 0;
-    for (unsigned int y = 0; y < image->height; y++) {
-        for (unsigned int x = 0; x < image->width; x++) {
-            char curr = (&(image->img[y][x]))[0];
-            if (curr > maxval) {
-                maxval = curr;
+    unsigned int width = FreeImage_GetWidth(image);
+    unsigned int height = FreeImage_GetHeight(image);
+
+    FIBITMAP *new_image = FreeImage_Allocate(width, height, 8);
+
+    uint8_t maxval = 0;
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
+            uint8_t value;
+            FreeImage_GetPixelIndex(image, x, y, &value);
+            if (value > maxval) {
+                maxval = value;
             }
         }
     }
 
-    for (unsigned int y = 0; y < image->height; y++) {
-        for (unsigned int x = 0; x < image->width; x++) {
-            char curr = (&(image->img[y][x]))[0];
-            if (curr > maxval / 2) {
-                (&(new_image->img[y][x]))[0] = 255;
+    for (unsigned int y = 0; y < height; y++) {
+        for (unsigned int x = 0; x < width; x++) {
+            uint8_t value;
+            FreeImage_GetPixelIndex(image, x, y, &value);
+            if (value > maxval / 2) {
+                BYTE val = 255;
+                FreeImage_SetPixelIndex(new_image, x, y, &val);
             }
             else {
-                (&(new_image->img[y][x]))[0] = 0;
+                BYTE val = 0;
+                FreeImage_SetPixelIndex(new_image, x, y, &val);
             }
         }
     }
-
     return new_image;
 }
 
 
-void process_cpu(const char* img_path) {
+void process_cpu(FIBITMAP *grey) {
 
-    Image* image = read_png(img_path);
-    write_png(image, "../collective_database/gray.png");
-
-    Image* image_sobel_x = sobel(image, 'x');
-    write_png(image_sobel_x, "../collective_database/sobel_x.png");
-
-    Image* image_sobel_y = sobel(image, 'y');
-    write_png(image_sobel_y, "../collective_database/sobel_y.png");
-
-    int pool_size = 31;
-
-    Image* image_pool_sobel_x = average_pooling(image_sobel_x, pool_size);
-    write_png(image_pool_sobel_x, "../collective_database/pool_sobel_x.png");
-
-    Image* image_pool_sobel_y = average_pooling(image_sobel_y, pool_size);
-    write_png(image_pool_sobel_y, "../collective_database/pool_sobel_y.png");
-
-
-    Image* image_res = response(image_pool_sobel_x, image_pool_sobel_y);
-    write_png(image_res, "../collective_database/res.png");
-
+    int pool_size = 32;
     int pp_size = 5;
 
-    Image* image_pp = post_processing(image_res, pp_size);
-    write_png(image_pp, "../collective_database/res_pp.png");
 
-    Image* image_output = threshold(image_pp);
-    write_png(image_output, "../collective_database/output.png");
+    FIBITMAP* image_sobel_x = sobel(grey, 'x');
+    FIBITMAP* image_sobel_y = sobel(grey, 'y');
+
+    FIBITMAP* image_pool_sobel_x = average_pooling(image_sobel_x, pool_size);
+    FIBITMAP* image_pool_sobel_y = average_pooling(image_sobel_y, pool_size);
+    FIBITMAP* image_res = response(image_pool_sobel_x, image_pool_sobel_y);
+
+    FIBITMAP* image_pp = post_processing(image_res, pp_size);
+    FIBITMAP* image_output = threshold(image_pp);
+
+    if (DEBUG) {
+        FreeImage_Save(FIF_PNG, grey, "../collective_database/gray.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_x, "../collective_database/sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_y, "../collective_database/sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../collective_database/pool_sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../collective_database/pool_sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_res, "../collective_database/res.png", 0);
+        FreeImage_Save(FIF_PNG, image_pp, "../collective_database/res_pp.png", 0);
+    }
+
+    FreeImage_Save(FIF_PNG, image_output, "../collective_database/output.png", 0);
+
+    FreeImage_Unload(image_sobel_x);
+    FreeImage_Unload(image_sobel_y);
+    FreeImage_Unload(image_pool_sobel_x);
+    FreeImage_Unload(image_pool_sobel_y);
+    FreeImage_Unload(image_res);
+    FreeImage_Unload(image_pp);
+    FreeImage_Unload(image_output);
+
 }
 
 
