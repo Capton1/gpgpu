@@ -1,61 +1,31 @@
 #include "process.hpp"
 #include <stdio.h>
 
-#define TILE_WIDTH 32 + 2 // 32 + r*2
-
 __global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
                             int width, int height, int pitchIn,
                             int pitchX, int pitchY) {
     int r = 1;
 
-    __shared__ uint8_t tile[TILE_WIDTH][TILE_WIDTH];
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    const int block_x = blockDim.x * blockIdx.x;
-    const int block_y = blockDim.y * blockIdx.y;
+    if (x < r || x >= width - r) return;
+    if (y < r || y >= height - r) return;
 
-    int in_x = block_x + threadIdx.x;
-    int in_y = block_y + threadIdx.y;
+    int pix00 = in[(y - r) * pitchIn + x - r];
+    int pix01 = in[(y - r) * pitchIn + x];
+    int pix02 = in[(y - r) * pitchIn + x + r];
+    int pix10 = in[y * pitchIn + x - r];
+    int pix12 = in[y * pitchIn + x + r];
+    int pix20 = in[(y + r) * pitchIn + x - r];
+    int pix21 = in[(y + r) * pitchIn + x];
+    int pix22 = in[(y + r) * pitchIn + x + r];
 
-    if (in_x >= width || in_y >= height) return;
-
-    const uint8_t* block_ptr = in + blockIdx.x * blockDim.x
-                            + (blockIdx.y * blockDim.y) * pitchIn;
-    
-    for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x) {
-        for (int i = threadIdx.y; i < TILE_WIDTH; i += blockDim.y) {
-        
-            int padded_y = i - r;
-            int padded_x = j - r;
-
-            // replicate padding
-            if (padded_y + block_y < 0)
-                padded_y += r;
-            if (padded_x + block_x < 0)
-                padded_x += r;
-            if (padded_y + block_y >= height)
-                padded_y -= r;
-            if (padded_x + block_x >= width)
-                padded_x -= r;
-
-            tile[i][j] = block_ptr[padded_y * pitchIn + padded_x];
-        }
-    }
-    __syncthreads();
-
-    int pix00 = tile[threadIdx.y + 0][threadIdx.x + 0];
-    int pix01 = tile[threadIdx.y + 0][threadIdx.x + 1];
-    int pix02 = tile[threadIdx.y + 0][threadIdx.x + 2];
-    int pix10 = tile[threadIdx.y + 1][threadIdx.x + 0];
-    int pix12 = tile[threadIdx.y + 1][threadIdx.x + 2];
-    int pix20 = tile[threadIdx.y + 2][threadIdx.x + 0];
-    int pix21 = tile[threadIdx.y + 2][threadIdx.x + 1];
-    int pix22 = tile[threadIdx.y + 2][threadIdx.x + 2];
-
-    int sumX =  -pix00 + pix02 - 2*pix10 + 2*pix12 - pix20 + pix22;
+    int sumX = -pix00 + pix02 - 2*pix10 + 2*pix12 - pix20 + pix22;
     int sumY =  pix00 + 2*pix01 + pix02 - pix20 - 2*pix21 - pix22;
 
-    out_x[in_x + in_y * pitchX] = (sumX > 0) ? sumX : -sumX;
-    out_y[in_x + in_y * pitchY] = (sumY > 0) ? sumY : -sumY;
+    out_x[x + y * pitchX] = (sumX > 0) ? sumX : -sumX;
+    out_y[x + y * pitchY] = (sumY > 0) ? sumY : -sumY;
 }
 
 void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
