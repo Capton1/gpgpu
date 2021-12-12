@@ -8,6 +8,7 @@
 #include <cassert>
 #include <stdio.h>
 #include <math.h>
+#include <chrono>
 #include "utils.hpp"
 #include "image.hpp"
 

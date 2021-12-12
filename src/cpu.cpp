@@ -210,3 +210,84 @@ void process_cpu(const char* img_path) {
     write_png(image_output, "../collective_database/output.png");
 }
 
+
+
+using std::chrono::high_resolution_clock;
+using std::chrono::duration_cast;
+using std::chrono::duration;
+using std::chrono::milliseconds;
+
+void benchmarck_cpu(const char* img_path) {
+    
+    std::chrono::high_resolution_clock::time_point t_start, t_end;
+    float duration;
+
+    /* Read Image */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image = read_png(img_path);
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("read_png(): %fms\n", duration);
+    write_png(image, "../collective_database/gray.png");
+
+    /* Compute Sobel X & Y */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image_sobel_x = sobel(image, 'x');
+    Image* image_sobel_y = sobel(image, 'y');
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("image_sobel_x() + image_sobel_y(): %fms\n", duration);
+    write_png(image_sobel_x, "../collective_database/sobel_x.png");
+    write_png(image_sobel_y, "../collective_database/sobel_y.png");
+
+    int pool_size = 31;
+
+    /* Average Pooling X & Y */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image_pool_sobel_x = average_pooling(image_sobel_x, pool_size);
+    Image* image_pool_sobel_y = average_pooling(image_sobel_y, pool_size);
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("average_pooling(image_sobel_x) + average_pooling(image_sobel_y): %fms\n", duration);
+    write_png(image_pool_sobel_x, "../collective_database/pool_sobel_x.png");
+    write_png(image_pool_sobel_y, "../collective_database/pool_sobel_y.png");
+
+    /* Response */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image_res = response(image_pool_sobel_x, image_pool_sobel_y);
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("response(): %fms\n", duration);
+    write_png(image_res, "../collective_database/res.png");
+
+    int pp_size = 5;
+
+    /* Post Processing */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image_pp = post_processing(image_res, pp_size);
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("post_processing(): %fms\n", duration);
+    write_png(image_pp, "../collective_database/res_pp.png");
+
+    /* Threshold */
+    t_start = high_resolution_clock::now();
+    // Start
+    Image* image_output = threshold(image_pp);
+    // End
+    t_end = high_resolution_clock::now();
+    duration = duration_cast<milliseconds>(t_end - t_start).count();
+    printf("threshold(): %fms\n", duration);
+    write_png(image_output, "../collective_database/output.png");
+}
+
