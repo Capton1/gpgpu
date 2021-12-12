@@ -1,7 +1,7 @@
 #include "cpu.hpp"
 #include <algorithm>
 
-#define DEBUG true
+#define DEBUG false
 
 FIBITMAP* sobel(FIBITMAP *image, const char type) {
 
@@ -221,7 +221,7 @@ FIBITMAP* threshold(FIBITMAP *image) {
 
 void process_cpu(FIBITMAP *grey) {
 
-    int pool_size = 31;
+    int pool_size = 32;
     int pp_size = 5;
 
 

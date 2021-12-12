@@ -47,7 +47,7 @@ int main(int argc, char** argv) {
         auto output_img = FreeImage_ConvertFromRawBits(output, output_width, output_height,
                                                         output_width, 8, 0, 0, 0);
 
-        FreeImage_Save(FIF_PNG, output_img, "../output_gpu/output.png", 0);
+        FreeImage_Save(FIF_PNG, output_img, "../collective_database/output.png", 0);
         free(output);
     }
 
@@ -56,12 +56,11 @@ int main(int argc, char** argv) {
     FreeImage_Unload(grey);
 
     // Evaluate
-    int pool_size = 31;
 
     formato = FreeImage_GetFileType("../collective_database/output.png", 0);
     FIBITMAP *output = FreeImage_Load(formato, "../collective_database/output.png");
     FIBITMAP *output_grey = FreeImage_ConvertToGreyscale(output);
-    FIBITMAP *scaled_output = image_scaler(output, pool_size + 1);
+    FIBITMAP *scaled_output = image_scaler(output, POOLSIZE);
     FreeImage_Save(FIF_PNG, scaled_output, "../collective_database/scaled_output.png", 0);
     formato = FreeImage_GetFileType("../collective_database/test-GT.png", 0);
     FIBITMAP *gt = FreeImage_Load(formato, "../collective_database/test-GT.png");
