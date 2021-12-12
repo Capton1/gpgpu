@@ -36,41 +36,24 @@ int main(int argc, char** argv) {
         process_cpu(grey);
     }
     else if (mode == "GPU") {
+        int output_width = width/POOLSIZE;
+        int output_height = height/POOLSIZE;
+
         uint8_t* buffer = (uint8_t*) FreeImage_GetBits(grey);
-        auto output = FreeImage_ConvertFromRawBits(buffer, width, height, width, 8, 0,
-                                                0, 0);
-        FreeImage_Save(FIF_PNG, output, "output.png", 0);
-        printf("GPU\n");
+
+        uint8_t *output = (uint8_t*)calloc(output_width * output_height, sizeof(uint8_t));
+        process_image(buffer, output, width, height);
+
+        auto output_img = FreeImage_ConvertFromRawBits(output, output_width, output_height,
+                                                        output_width, 8, 0, 0, 0);
+
+        FreeImage_Save(FIF_PNG, output_img, "../output_gpu/output.png", 0);
+        free(output);
     }
 
 
     FreeImage_Unload(src);
     FreeImage_Unload(grey);
-
-    /*
-    cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
-
-    int orig_width = img.size().width;
-    int orig_height = img.size().height;
-
-
-    int output_width = orig_width/POOLSIZE;
-    int output_height = orig_height/POOLSIZE;
-
-    std::vector<uint8_t> img_vec;
-    if (!img.isContinuous()) {
-        std::cout << "Could not convert img to array" << std::endl;
-    }
-    img_vec.assign(img.data, img.data + img.total()*img.channels());
-
-    unsigned char *buffer = img_vec.data();
-
-
-    uint8_t *output = (uint8_t*)calloc(orig_width * orig_height, sizeof(uint8_t));
-    process_image(buffer, output, orig_width, orig_height);
-    cv::Mat output_img = cv::Mat(output_height, output_width, CV_8U, output);
-    cv::imwrite("../output_gpu/output.jpg", output_img);
-    free(output);*/
 
     // Evaluate
     int pool_size = 31;
