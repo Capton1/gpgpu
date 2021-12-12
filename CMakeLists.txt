@@ -18,16 +18,18 @@ FetchContent_MakeAvailable(CLI11)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR} )
 
-find_package(PNG REQUIRED)
+find_package(FreeImagePlus REQUIRED)
+include_directories(${FREEIMAGEPLUS_INCLUDE_DIRS})
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -W -Wall -g")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3")
 
-add_executable(main src/main.cpp src/cpu.cpp src/utils.cpp src/image.cpp)
+#src/cpu.cpp src/utils.cpp src/image.cpp
+add_executable(main src/main.cpp )
 target_compile_features(main PUBLIC cxx_std_17)
-target_link_libraries(main PRIVATE CLI11::CLI11 PNG::PNG CLI11::CLI11 spdlog::spdlog)
+target_link_libraries(main PRIVATE CLI11::CLI11 freeimageplus.so CLI11::CLI11 spdlog::spdlog)
 
-#find_package(PNG REQUIRED)
+
 
 
 
