@@ -42,6 +42,8 @@ int main(int argc, char** argv) {
         uint8_t* buffer = (uint8_t*) FreeImage_GetBits(grey);
 
         uint8_t *output = (uint8_t*)calloc(output_width * output_height, sizeof(uint8_t));
+
+        // Comment to run CPU only
         process_image(buffer, output, width, height);
 
         auto output_img = FreeImage_ConvertFromRawBits(output, output_width, output_height,
