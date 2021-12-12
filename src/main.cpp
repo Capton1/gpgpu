@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
     CLI::App app{"code"};
     app.add_option("-i", filename, "Input image");
     app.add_set("-m", mode, {"GPU", "CPU"}, "Either 'GPU' or 'CPU'");
-    app.add_option("-b", benchmark, "Evaluate");
+    app.add_flag("-b", benchmark, "Run benchmark");
     CLI11_PARSE(app, argc, argv);
 
     const char *filename_c = filename.c_str();
