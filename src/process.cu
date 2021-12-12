@@ -118,63 +118,6 @@ void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t
 }
 
 
-__global__ void compute_max(const uint8_t* in, unsigned int *max,
-                            int width, int height, int pitchIn) {
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-
-    atomicMax(max, in[x + y * pitchIn]);
-}
-
-__global__ void compute_threshold(const uint8_t* in,
-                                    uint8_t *out, unsigned int *max, int width, int height,
-                                    int pitchIn, int pitchOut) {
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x >= width || y >= height) return;
-    uint8_t value = *max/2;
-    out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
-}
-
-void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
-                int pitchIn, int pitchOut) {
-    cudaError_t rc = cudaSuccess;
-
-    // Allocate device memory
-    unsigned int* devMax;
-
-    rc = cudaMalloc(&devMax, sizeof(unsigned int));
-    if (rc)
-        printf("Fail max variable allocation\n");
-
-    {
-        int bsize = 32;
-        int w     = std::ceil((float)width / bsize);
-        int h     = std::ceil((float)height / bsize);
-
-        dim3 dimBlock(bsize, bsize);
-        dim3 dimGrid(w, h);
-
-        compute_max<<<dimGrid, dimBlock>>>(devIn, devMax, width, height, pitchIn);
-        cudaDeviceSynchronize();
-        if (cudaPeekAtLastError())
-            printf("max Error\n");
-        
-        compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
-        cudaDeviceSynchronize();
-        if (cudaPeekAtLastError())
-            printf("thresholding Error\n");
-
-    }
-    cudaFree(devMax);
-}
-
-
 __global__ void dilation(const uint8_t* in, uint8_t *out, int width,
                             int height, int pitchIn, int pitchOut) {
 
@@ -255,6 +198,63 @@ void morph_closure(const uint8_t* devIn, uint8_t *devOut,
     }
 
     cudaFree(devTmp);
+}
+
+
+__global__ void compute_max(const uint8_t* in, unsigned int *max,
+                            int width, int height, int pitchIn) {
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+
+    atomicMax(max, in[x + y * pitchIn]);
+}
+
+__global__ void compute_threshold(const uint8_t* in,
+                                    uint8_t *out, unsigned int *max, int width, int height,
+                                    int pitchIn, int pitchOut) {
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x >= width || y >= height) return;
+    uint8_t value = *max/2;
+    out[x + y * pitchOut] = 255 * (in[x + y * pitchIn] > value);
+}
+
+void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
+                int pitchIn, int pitchOut) {
+    cudaError_t rc = cudaSuccess;
+
+    // Allocate device memory
+    unsigned int* devMax;
+
+    rc = cudaMalloc(&devMax, sizeof(unsigned int));
+    if (rc)
+        printf("Fail max variable allocation\n");
+
+    {
+        int bsize = 32;
+        int w     = std::ceil((float)width / bsize);
+        int h     = std::ceil((float)height / bsize);
+
+        dim3 dimBlock(bsize, bsize);
+        dim3 dimGrid(w, h);
+
+        compute_max<<<dimGrid, dimBlock>>>(devIn, devMax, width, height, pitchIn);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("max Error\n");
+        
+        compute_threshold<<<dimGrid, dimBlock>>>(devIn, devOut, devMax, width, height, pitchIn, pitchOut);
+        cudaDeviceSynchronize();
+        if (cudaPeekAtLastError())
+            printf("thresholding Error\n");
+
+    }
+    cudaFree(devMax);
 }
 
 
