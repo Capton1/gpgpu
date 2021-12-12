@@ -122,8 +122,8 @@ FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size) {
     for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
         for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
             uint8_t min = 255;
-            for (unsigned int i = y - postproc_size / 2; i < y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j < x + postproc_size / 2; j++) {
+            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
+                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
                     uint8_t value;
                     FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
                     if (value == 255) {
@@ -140,8 +140,8 @@ FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size) {
     for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
         for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
             uint8_t min = 0;
-            for (unsigned int i = y - postproc_size / 2; i < y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j < x + postproc_size / 2; j++) {
+            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
+                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
                     uint8_t value;
                     FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
                     if (value == 255) {

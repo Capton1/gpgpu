@@ -60,7 +60,11 @@ int main(int argc, char** argv) {
     formato = FreeImage_GetFileType("../collective_database/output.png", 0);
     FIBITMAP *output = FreeImage_Load(formato, "../collective_database/output.png");
     FIBITMAP *output_grey = FreeImage_ConvertToGreyscale(output);
-    FIBITMAP *scaled_output = image_scaler(output, POOLSIZE);
+
+
+    //FIBITMAP *scaled_output = image_scaler(output_grey, POOLSIZE);
+    FIBITMAP *scaled_output = FreeImage_Rescale(output_grey, width, height, FILTER_BILINEAR);
+
     FreeImage_Save(FIF_PNG, scaled_output, "../collective_database/scaled_output.png", 0);
     formato = FreeImage_GetFileType("../collective_database/test-GT.png", 0);
     FIBITMAP *gt = FreeImage_Load(formato, "../collective_database/test-GT.png");
