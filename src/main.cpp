@@ -4,31 +4,50 @@
 #include "process.hpp"
 #include <stdio.h>
 #include "cpu.hpp"
+#include <FreeImage.h>
 
 
 int main(int argc, char** argv) {
     (void) argc;
     (void) argv;
 
-    std::string filename = "output.png";
-    std::string str = "../collective_database/test.png";
-    const char *cstr = str.c_str();
+    std::string filename = "../collective_database/test.png";
+
     
     std::string mode = "CPU";
 
     CLI::App app{"code"};
-    app.add_option("-o", filename, "Output image");
+    app.add_option("-i", filename, "Input image");
     app.add_set("-m", mode, {"GPU", "CPU"}, "Either 'GPU' or 'CPU'");
     CLI11_PARSE(app, argc, argv);
+
+    const char *filename_c = filename.c_str();
+    FREE_IMAGE_FORMAT formato = FreeImage_GetFileType(filename_c, 0);
+    FIBITMAP *src = FreeImage_Load(formato, filename_c);
+    FIBITMAP *grey;
+
+    grey = FreeImage_ConvertToGreyscale(src);
+
+    int width = FreeImage_GetWidth(src);
+    int height = FreeImage_GetHeight(src);
 
     // Rendering
     if (mode == "CPU") {
         printf("CPU\n");
-        process_cpu(cstr);
+        //process_cpu(grey);
     }
     else if (mode == "GPU") {
+        uint8_t* buffer = (uint8_t*) FreeImage_GetBits(grey);
+        auto output = FreeImage_ConvertFromRawBits(buffer, width, height, width, 8, 0,
+                                                0, 0);
+        FreeImage_Save(FIF_PNG, output, "output.png", 0);
         printf("GPU\n");
     }
+
+
+    FreeImage_Unload(src);
+    FreeImage_Unload(grey);
+
     /*
     cv::Mat img = cv::imread("../train/PXL_20211101_175643604.jpg", 0);
 
@@ -55,14 +74,14 @@ int main(int argc, char** argv) {
     free(output);*/
 
     // Evaluate
-    int pool_size = 31;
+    /*int pool_size = 31;
 
     Image* output = read_png("../collective_database/output.png");
     Image* scaled_output = image_scaler(output, pool_size+1);
     write_png(scaled_output, "../collective_database/scaled_output.png");
 
-    Image* gt = read_png("../collective_database/test-GT.png");
+    //Image* gt = read_png("../collective_database/test-GT.png");
     
-    float iou = compute_IoU(gt, scaled_output);
-    printf("Metrics: IoU: %f\n", iou);
+    //float iou = compute_IoU(gt, scaled_output);
+    //printf("Metrics: IoU: %f\n", iou);*/
 }
