@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
     unsigned char *buffer = img_vec.data();
 
 
-    uint8_t *output = (uint8_t*)calloc(output_width * output_height, sizeof(uint8_t));
+    uint8_t *output = (uint8_t*)calloc(orig_width * orig_height, sizeof(uint8_t));
     process_image(buffer, output, orig_width, orig_height);
     cv::Mat output_img = cv::Mat(output_height, output_width, CV_8U, output);
     cv::imwrite("../output_gpu/output.jpg", output_img);

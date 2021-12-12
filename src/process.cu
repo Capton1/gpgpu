@@ -1,10 +1,9 @@
 #include "process.hpp"
 #include <stdio.h>
 
-__global__ void sobel_x_filter(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
-
-    int kernel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
+__global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
+                            int width, int height, int pitchIn,
+                            int pitchX, int pitchY) {
     int r = 1;
 
     int x = blockDim.x * blockIdx.x + threadIdx.x;
@@ -13,42 +12,25 @@ __global__ void sobel_x_filter(const uint8_t* in, uint8_t *out, int width,
     if (x < r || x >= width - r) return;
     if (y < r || y >= height - r) return;
 
-    int sum = 0.0;
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-            sum += kernel[ky+r][kx+r] * pixel;
-        }
-    }
+    int pix00 = in[(y - r) * pitchIn + x - r];
+    int pix01 = in[(y - r) * pitchIn + x];
+    int pix02 = in[(y - r) * pitchIn + x + r];
+    int pix10 = in[y * pitchIn + x - r];
+    int pix12 = in[y * pitchIn + x + r];
+    int pix20 = in[(y + r) * pitchIn + x - r];
+    int pix21 = in[(y + r) * pitchIn + x];
+    int pix22 = in[(y + r) * pitchIn + x + r];
 
-    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
+    int sumX = -pix00 + pix02 - 2*pix10 + 2*pix12 - pix20 + pix22;
+    int sumY =  pix00 + 2*pix01 + pix02 - pix20 - 2*pix21 - pix22;
+
+    out_x[x + y * pitchX] = (sumX > 0) ? sumX : -sumX;
+    out_y[x + y * pitchY] = (sumY > 0) ? sumY : -sumY;
 }
 
-__global__ void sobel_y_filter(const uint8_t* in, uint8_t *out, int width,
-                            int height, int pitchIn, int pitchOut) {
-
-    int kernel[3][3] = {{1, 2, 1}, {0, 0, 0}, {-1, -2, -1}};
-    int r = 1;
-
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
-
-    if (x < r || x >= width - r) return;
-    if (y < r || y >= height - r) return;
-
-    int sum = 0;
-    for (int kx = -r; kx <= r; kx++) {
-        for (int ky = -r; ky <= r; ky++) {
-            int pixel = in[((y + ky) * pitchIn) + (x + kx)];
-            sum += kernel[ky+r][kx+r] * pixel;
-        }
-    }
-
-    out[x + y * pitchOut] = (sum > 0) ? sum : -sum;
-}
-
-void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
-                    int pitchIn, int pitchOut, char type) {
+void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
+                    int width, int height, int pitchIn,
+                    int pitchX, int pitchY) {
 
     int bsize = 32;
     int w     = std::ceil((float)width / bsize);
@@ -56,10 +38,8 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devOut, int width, int height,
 
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(w, h);
-    if (type == 'x')
-        sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
-    else
-        sobel_y_filter<<<dimGrid, dimBlock>>>(devIn, devOut, width, height, pitchIn, pitchOut);
+    //sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devX, width, height, pitchIn, pitchX);
+    sobel_xy<<<dimGrid, dimBlock>>>(devIn, devX, devY, width, height, pitchIn, pitchX, pitchY);
     cudaDeviceSynchronize();
 
     if (cudaPeekAtLastError())
@@ -303,17 +283,15 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
         printf("Couldn't copy img to gpu\n");
 
 
-    // Sobel X
+    // Sobel X & Y
     rc = cudaMallocPitch(&devSobelX, &pitchX, width * sizeof(uint8_t), height);
     if (rc)
-        printf("Fail devIn allocation\n");
-    sobel_filter(devImg, devSobelX, width, height, pitchImg, pitchX, 'x');
-
-    // Sobel Y
+        printf("Fail devSobelX allocation\n");
     rc = cudaMallocPitch(&devSobelY, &pitchY, width * sizeof(uint8_t), height);
     if (rc)
-        printf("Fail devIn allocation\n");
-    sobel_filter(devImg, devSobelY, width, height, pitchImg, pitchY, 'y');
+        printf("Fail devSobelY allocation\n");
+
+    sobel_filter(devImg, devSobelX, devSobelY, width, height, pitchImg, pitchX, pitchY);
 
     // Average Pooling
     int new_width = std::floor((float)width / POOLSIZE);
