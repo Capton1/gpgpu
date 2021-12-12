@@ -48,7 +48,7 @@ int main(int argc, char** argv) {
 
     uint8_t *output = (uint8_t*)calloc(orig_width * orig_height, sizeof(uint8_t));
     process_image(buffer, output, orig_width, orig_height);
-    cv::Mat output_img = cv::Mat(orig_height, orig_width, CV_8U, output);
+    cv::Mat output_img = cv::Mat(output_height, output_width, CV_8U, output);
     cv::imwrite("../output_gpu/output.jpg", output_img);
     free(output);
 

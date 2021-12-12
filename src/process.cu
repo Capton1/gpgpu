@@ -6,8 +6,6 @@
 __global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
                             int width, int height, int pitchIn,
                             int pitchX, int pitchY) {
-
-    int kernel[3][3] = {{-1, 0, 1}, {-2, 0, 2}, {-1, 0, 1}};
     int r = 1;
 
     __shared__ uint8_t tile[TILE_WIDTH][TILE_WIDTH];
@@ -22,8 +20,10 @@ __global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
 
     const uint8_t* block_ptr = in + blockIdx.x * blockDim.x
                             + (blockIdx.y * blockDim.y) * pitchIn;
-    for (int i = threadIdx.y; i < TILE_WIDTH; i += blockDim.y)
-        for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x) {
+    
+    for (int j = threadIdx.x; j < TILE_WIDTH; j += blockDim.x) {
+        for (int i = threadIdx.y; i < TILE_WIDTH; i += blockDim.y) {
+        
             int padded_y = i - r;
             int padded_x = j - r;
 
@@ -39,13 +39,13 @@ __global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
 
             tile[i][j] = block_ptr[padded_y * pitchIn + padded_x];
         }
+    }
     __syncthreads();
 
     int pix00 = tile[threadIdx.y + 0][threadIdx.x + 0];
     int pix01 = tile[threadIdx.y + 0][threadIdx.x + 1];
     int pix02 = tile[threadIdx.y + 0][threadIdx.x + 2];
     int pix10 = tile[threadIdx.y + 1][threadIdx.x + 0];
-
     int pix12 = tile[threadIdx.y + 1][threadIdx.x + 2];
     int pix20 = tile[threadIdx.y + 2][threadIdx.x + 0];
     int pix21 = tile[threadIdx.y + 2][threadIdx.x + 1];
@@ -53,13 +53,6 @@ __global__ void sobel_xy(const uint8_t* in, uint8_t *out_x, uint8_t *out_y,
 
     int sumX =  -pix00 + pix02 - 2*pix10 + 2*pix12 - pix20 + pix22;
     int sumY =  pix00 + 2*pix01 + pix02 - pix20 - 2*pix21 - pix22;
-    /*for (int kx = 0; kx < 3; kx++) {
-        for (int ky = 0; ky < 3; ky++) {
-            int pixel = tile[threadIdx.y + ky][threadIdx.x + kx];
-            sumX += kernel[ky][kx] * pixel;
-            sumY += kernel[kx][2-ky] * pixel;
-        }
-    }*/
 
     out_x[in_x + in_y * pitchX] = (sumX > 0) ? sumX : -sumX;
     out_y[in_x + in_y * pitchY] = (sumY > 0) ? sumY : -sumY;
@@ -359,8 +352,8 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
     threshold(devPostproc, devOutput, new_width, new_height, pitchPostproc, pitchOutput);
 
     // Copy back to main memory
-    rc = cudaMemcpy2D(output, width, devSobelY, pitchY,
-                        width * sizeof(uint8_t), height, cudaMemcpyDeviceToHost);
+    rc = cudaMemcpy2D(output, stride_out, devOutput, pitchOutput,
+                        new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
 
