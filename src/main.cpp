@@ -4,6 +4,7 @@
 #include "process.hpp"
 #include <stdio.h>
 #include "cpu.hpp"
+#include "utils.hpp"
 #include <FreeImage.h>
 
 
@@ -12,8 +13,6 @@ int main(int argc, char** argv) {
     (void) argv;
 
     std::string filename = "../collective_database/test.png";
-
-    
     std::string mode = "CPU";
 
     CLI::App app{"code"};
@@ -34,7 +33,7 @@ int main(int argc, char** argv) {
     // Rendering
     if (mode == "CPU") {
         printf("CPU\n");
-        //process_cpu(grey);
+        process_cpu(grey);
     }
     else if (mode == "GPU") {
         uint8_t* buffer = (uint8_t*) FreeImage_GetBits(grey);
@@ -74,14 +73,21 @@ int main(int argc, char** argv) {
     free(output);*/
 
     // Evaluate
-    /*int pool_size = 31;
+    int pool_size = 31;
 
-    Image* output = read_png("../collective_database/output.png");
-    Image* scaled_output = image_scaler(output, pool_size+1);
-    write_png(scaled_output, "../collective_database/scaled_output.png");
+    formato = FreeImage_GetFileType("../collective_database/output.png", 0);
+    FIBITMAP *output = FreeImage_Load(formato, "../collective_database/output.png");
+    FIBITMAP *output_grey = FreeImage_ConvertToGreyscale(output);
+    FIBITMAP *scaled_output = image_scaler(output, pool_size + 1);
+    FreeImage_Save(FIF_PNG, scaled_output, "../collective_database/scaled_output.png", 0);
+    formato = FreeImage_GetFileType("../collective_database/test-GT.png", 0);
+    FIBITMAP *gt = FreeImage_Load(formato, "../collective_database/test-GT.png");
+    FIBITMAP *gt_grey = FreeImage_ConvertToGreyscale(gt);
+    float iou = compute_IoU(gt_grey, scaled_output);
+    printf("Metrics: IoU: %f\n", iou);
 
-    //Image* gt = read_png("../collective_database/test-GT.png");
-    
-    //float iou = compute_IoU(gt, scaled_output);
-    //printf("Metrics: IoU: %f\n", iou);*/
+    FreeImage_Unload(gt);
+    FreeImage_Unload(gt_grey);
+    FreeImage_Unload(output);
+    FreeImage_Unload(output_grey);
 }
