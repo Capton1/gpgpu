@@ -2,7 +2,7 @@
 #include <iostream>
 #include <stdio.h>
 //#include "cpu.hpp"
-#include <FreeImagePlus.h>
+#include <FreeImage.h>
 
 int main(int argc, char** argv) {
     (void) argc;
@@ -24,11 +24,8 @@ int main(int argc, char** argv) {
     if (mode == "CPU") {
         printf("CPU\n");
 
-        fipImage img;
-        img.load(cstr);
-        std::cout << img.getWidth() << " " << img.getHeight() << std::endl;
-        std::cout << img.isGrayscale() << std::endl;
-        std::cout << img.getBitsPerPixel() << std::endl;
+        FREE_IMAGE_FORMAT formato = FreeImage_GetFileType(cstr, 0);
+        FIBITMAP* imagen = FreeImage_Load(formato, cstr);
         //process_cpu(cstr);
     }
     else if (mode == "GPU") {
