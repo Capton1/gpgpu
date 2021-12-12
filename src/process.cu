@@ -32,11 +32,12 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
                     int width, int height, int pitchIn,
                     int pitchX, int pitchY) {
 
-    int bsize = 32;
-    int w     = std::ceil((float)width / bsize);
-    int h     = std::ceil((float)height / bsize);
+    int bsize_w = 32;
+    int bsize_h = 16;
+    int w     = std::ceil((float)width / bsize_w);
+    int h     = std::ceil((float)height / bsize_h);
 
-    dim3 dimBlock(bsize, bsize);
+    dim3 dimBlock(bsize_w, bsize_h);
     dim3 dimGrid(w, h);
     //sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devX, width, height, pitchIn, pitchX);
     sobel_xy<<<dimGrid, dimBlock>>>(devIn, devX, devY, width, height, pitchIn, pitchX, pitchY);
