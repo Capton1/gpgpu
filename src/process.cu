@@ -39,7 +39,7 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
 
     dim3 dimBlock(bsize_w, bsize_h);
     dim3 dimGrid(w, h);
-    //sobel_x_filter<<<dimGrid, dimBlock>>>(devIn, devX, width, height, pitchIn, pitchX);
+
     sobel_xy<<<dimGrid, dimBlock>>>(devIn, devX, devY, width, height, pitchIn, pitchX, pitchY);
     cudaDeviceSynchronize();
 
@@ -319,7 +319,6 @@ void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
                         new_width * sizeof(uint8_t), new_height, cudaMemcpyDeviceToHost);
     if (rc)
         printf("Unable to copy output back to memory\n");
-
 
     cudaFree(devImg);
     cudaFree(devSobelX);
