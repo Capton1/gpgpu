@@ -46,7 +46,7 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
     if (cudaPeekAtLastError())
         printf("sobel filter Error\n");
 }
-
+/*
 __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely,
                                     uint8_t *out, int patchs_x, int patchs_y,
                                     int pitchX, int pitchY, int pitchOut) {
@@ -117,8 +117,45 @@ void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t
     if (cudaPeekAtLastError())
         printf("avg pooling Error\n");
 
+}*/
+
+__global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely,
+                                    uint8_t *out, int patchs_x, int patchs_y,
+                                    int pitchX, int pitchY, int pitchOut) {
+
+    __shared__ int local_sum;
+    if(threadIdx.x == 0 && threadIdx.y == 0) local_sum = 0;
+    __syncthreads();
+
+    int x = blockDim.x * blockIdx.x + threadIdx.x;
+    int y = blockDim.y * blockIdx.y + threadIdx.y;
+
+    if (x < patchs_x * POOLSIZE || y < patchs_y * POOLSIZE)
+        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
+
+    __syncthreads();
+    if(threadIdx.x == 0 && threadIdx.y == 0) {
+        x /= POOLSIZE;
+        y /= POOLSIZE;
+        float mean = local_sum/(POOLSIZE*POOLSIZE);
+        out[x + y * pitchOut] = mean;
+    }
 }
 
+void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
+                     int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
+
+    int bsize = POOLSIZE;
+    dim3 dimBlock(bsize, bsize);
+    dim3 dimGrid(patchs_x, patchs_y);
+    compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
+                                                pitchX, pitchY, pitchOut);
+    cudaDeviceSynchronize();
+
+    if (cudaPeekAtLastError())
+        printf("avg pooling Error\n");
+
+}
 
 __global__ void dilation(const uint8_t* in, uint8_t *out, int width,
                             int height, int pitchIn, int pitchOut) {
