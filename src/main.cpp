@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 
     std::string filename = "../collective_database/test.png";
     int benchmark = 0;
-    std::string mode = "CPU";
+    std::string mode = "GPU";
 
     CLI::App app{"code"};
     app.add_option("-i", filename, "Input image");
