@@ -114,48 +114,50 @@ FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size) {
     FIBITMAP *buffer = FreeImage_Allocate(width, height, 8);
     FIBITMAP *tmp = FreeImage_Allocate(postproc_size, postproc_size, 8);
 
-    for (unsigned int i = postproc_size / 2 - 1; i < postproc_size / 2 + 2; i++) {
+    unsigned int padding = postproc_size / 2;
+
+    for (unsigned int i = padding - 1; i < padding + 2; i++) {
         for (unsigned int  j = 0; j < postproc_size; j++) {
             BYTE val = 255;
             FreeImage_SetPixelIndex(tmp, j, i, &val);
         }
     }
 
-    for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
-        for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
-            uint8_t min = 255;
-            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
+    FreeImage_Save(FIF_PNG, tmp, "../collective_database/tmp.png", 0);
+
+    for(unsigned int y = padding; y < height - padding; y++) {
+        for(unsigned int x = padding; x < width - padding; x++) {
+            uint8_t max = 0;
+            for (unsigned int i = y - 1; i <= y + 1; i++) {
+                for (unsigned int j = x - 2; j <= x + 2; j++) {
                     uint8_t value;
-                    FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
-                    if (value == 255) {
-                        FreeImage_GetPixelIndex(image, j, i, &value);
-                        min = std::min(min, value);
-                    }
+                    FreeImage_GetPixelIndex(image, j, i, &value);
+                    max = std::max(max, value);
                 }
             }
-            BYTE val = min;
+            BYTE val = max;
             FreeImage_SetPixelIndex(buffer, x, y, &val);
         }
     }
 
-    for(unsigned int y = postproc_size / 2; y < height - postproc_size / 2; y++) {
-        for(unsigned int x = postproc_size / 2; x < width - postproc_size / 2; x++) {
-            uint8_t min = 0;
-            for (unsigned int i = y - postproc_size / 2; i <= y + postproc_size / 2; i++) {
-                for (unsigned int j = x - postproc_size / 2; j <= x + postproc_size / 2; j++) {
+    for(unsigned int y = padding; y < height - padding; y++) {
+        for(unsigned int x = padding; x < width - padding; x++) {
+            uint8_t min = 255;
+            for (unsigned int i = y - 1; i <= y + 1; i++) {
+                for (unsigned int j = x - 2; j <= x + 2; j++) {
                     uint8_t value;
-                    FreeImage_GetPixelIndex(tmp, x - j + postproc_size / 2, y - i + postproc_size / 2, &value);
-                    if (value == 255) {
-                        FreeImage_GetPixelIndex(buffer, j, i, &value);
-                        min = std::max(min, value);
-                    }
+                    FreeImage_GetPixelIndex(buffer, j, i, &value);
+                    min = std::min(min, value);
                 }
             }
             BYTE val = min;
             FreeImage_SetPixelIndex(new_image, x, y, &val);
         }
     }
+
+    FreeImage_Save(FIF_PNG, buffer, "../collective_database/buffer.png", 0);
+
+
 
     return new_image;
 }
