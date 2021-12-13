@@ -47,33 +47,32 @@ void sobel_filter(const uint8_t* devIn, uint8_t *devX, uint8_t *devY,
         printf("sobel filter Error\n");
 }
 
-
 __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely,
                                     uint8_t *out, int patchs_x, int patchs_y,
                                     int pitchX, int pitchY, int pitchOut) {
 
+    __shared__ int local_sum;
+    if(threadIdx.x == 0 && threadIdx.y) local_sum = 0;
+    __syncthreads();
+
     int x = blockDim.x * blockIdx.x + threadIdx.x;
     int y = blockDim.y * blockIdx.y + threadIdx.y;
 
-    if (x >= patchs_x || y >= patchs_y) return;
+    if (x < patchs_x * POOLSIZE || y < patchs_y * POOLSIZE)
+        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
 
-    int sum = 0;
-    int index_y = y * POOLSIZE;
-    int index_x = x * POOLSIZE;
-    for (int j = index_y; j < index_y + POOLSIZE; j++) {
-        for (int i = index_x; i < index_x + POOLSIZE; i++) {
-            sum += sobelx[(j * pitchX) + i] - sobely[(j * pitchY) + i];
-        }
+    __syncthreads();
+    if(threadIdx.x == 0 && threadIdx.y) {
+        float mean = local_sum/(POOLSIZE*POOLSIZE);
+        out[blockIdx.x + blockIdx.y * pitchOut] = mean;
     }
-    
-    float mean = sum/(POOLSIZE*POOLSIZE);
-    out[x + y * pitchOut] = mean;
 }
+
 
 void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
                      int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
-    int bsize = 1;
+    int bsize = 32;
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(patchs_x, patchs_y);
     compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
