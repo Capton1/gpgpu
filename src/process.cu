@@ -51,28 +51,63 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
                                     uint8_t *out, int patchs_x, int patchs_y,
                                     int pitchX, int pitchY, int pitchOut) {
 
-    __shared__ int local_sum;
-    if(threadIdx.x == 0 && threadIdx.y) local_sum = 0;
+    __shared__ int partialSum[POOLSIZE][POOLSIZE];
+    int orig_width = patchs_x * POOLSIZE;
+    int orig_height = patchs_y * POOLSIZE;
+    int bs = blockDim.x; // blocksize is also equal to blockDim.y
+
+    // Colborative loading
+    int tx = threadIdx.x;
+    int startx = 2 * blockIdx.x * blockDim.x;
+    int x = startx + tx;
+
+    int ty = threadIdx.y;
+    int starty = 2 * blockIdx.y * blockDim.y;
+    int y = starty + ty;
+
+    partialSum[ty][tx] = 0;
+    partialSum[blockDim.y + ty][tx] = 0;
+    partialSum[ty][blockDim.x + tx] = 0;
+    partialSum[blockDim.y + ty][blockDim.x + tx] = 0;
+    if (x < orig_width && y < orig_height)
+        partialSum[ty][tx] = sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x];
+    if (x < orig_width && bs + y < orig_height)
+        partialSum[bs + ty][tx] = sobelx[((bs + y) * pitchX) + x] - sobely[((bs + y) * pitchY) + x];
+    if (bs + x < orig_width && y < orig_height)
+        partialSum[ty][bs + tx] = sobelx[(y * pitchX) + x + bs] - sobely[(y * pitchY) + x + bs];
+    if (bs + x < orig_width && bs + y < orig_height)
+        partialSum[bs + ty][bs + tx] = sobelx[((bs + y) * pitchX) + x + bs] - sobely[((bs + y) * pitchY) + x + bs];
     __syncthreads();
 
-    int x = blockDim.x * blockIdx.x + threadIdx.x;
-    int y = blockDim.y * blockIdx.y + threadIdx.y;
+    // Collaborative reduction
+    for(int stride = bs; stride >= 1; stride /= 2) {
+        if (ty < stride) {
+            partialSum[ty][tx] += partialSum[ty + stride][tx];
+            partialSum[ty][bs + tx] += partialSum[ty + stride][bs + tx];
+        }
+        __syncthreads();
+    }
+    
+    if (ty != 0) return;
 
-    if (x < patchs_x * POOLSIZE || y < patchs_y * POOLSIZE)
-        atomicAdd(&local_sum, sobelx[(y * pitchX) + x] - sobely[(y * pitchY) + x]);
+    for(int stride = bs; stride >= 1; stride /= 2) {
+        if (tx < stride) {
+            partialSum[ty][tx] += partialSum[ty][tx + stride];
+        }
+        __syncthreads();
+    }
 
-    __syncthreads();
-    if(threadIdx.x == 0 && threadIdx.y) {
-        float mean = local_sum/(POOLSIZE*POOLSIZE);
+    // Write to global mem
+    if(tx == 0 && ty == 0) {
+        float mean = partialSum[0][0]/(POOLSIZE*POOLSIZE);
         out[blockIdx.x + blockIdx.y * pitchOut] = mean;
     }
 }
 
-
 void average_pooling(const uint8_t* devSobelX, const uint8_t* devSobelY, uint8_t *devOut,
                      int patchs_x, int patchs_y, int pitchX, int pitchY, int pitchOut) {
 
-    int bsize = 32;
+    int bsize = std::ceil((float)POOLSIZE/2);
     dim3 dimBlock(bsize, bsize);
     dim3 dimGrid(patchs_x, patchs_y);
     compute_avg_pooling<<<dimGrid, dimBlock>>>(devSobelX, devSobelY, devOut, patchs_x, patchs_y,
