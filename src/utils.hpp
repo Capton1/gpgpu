@@ -9,11 +9,6 @@
 */
 float compute_IoU(FIBITMAP *gt, FIBITMAP *pred);
 
-/*
-** Scale image by $scale factor.
-*/
-FIBITMAP* image_scaler(FIBITMAP *image, float scale);
-
 
 
 #endif

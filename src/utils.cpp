@@ -28,29 +28,3 @@ float compute_IoU(FIBITMAP *gt, FIBITMAP *pred)
     }
     return sum_inter / sum_union;
 }
-
-
-/*
-** Scale image by $scale factor.
-*/
-FIBITMAP* image_scaler(FIBITMAP *image, float scale)
-{
-    unsigned int width = FreeImage_GetWidth(image);
-    unsigned int height = FreeImage_GetHeight(image);
-
-    unsigned int new_width = ceil(width * scale);
-    unsigned int new_height = ceil(height * scale);
-
-    FIBITMAP *new_image = FreeImage_Allocate(new_width, new_height, 8);
-
-
-    for(unsigned int x = 0; x < new_width; x++) {
-        for(unsigned int y = 0; y < new_height; y++) {
-            uint8_t value;
-            FreeImage_GetPixelIndex(image, (unsigned int)floor(x / scale), (unsigned int)floor(y / scale), &value);
-            FreeImage_SetPixelIndex(new_image, x, y, &value);
-        }
-    }
-
-    return new_image;
-}

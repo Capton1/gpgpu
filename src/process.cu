@@ -75,22 +75,24 @@ __global__ void compute_avg_pooling(const uint8_t* sobelx, const uint8_t* sobely
         partialSum[bs + ty][tx] = sobelx[((bs + y) * pitchX) + x] - sobely[((bs + y) * pitchY) + x];
     if (bs + x < orig_width && y < orig_height)
         partialSum[ty][bs + tx] = sobelx[(y * pitchX) + x + bs] - sobely[(y * pitchY) + x + bs];
-    if (bs + x < orig_width && 16 + y < orig_height)
-        partialSum[bs + ty][16 + tx] = sobelx[((bs + y) * pitchX) + x + bs] - sobely[((bs + y) * pitchY) + x + bs];
+    if (bs + x < orig_width && bs + y < orig_height)
+        partialSum[bs + ty][bs + tx] = sobelx[((bs + y) * pitchX) + x + bs] - sobely[((bs + y) * pitchY) + x + bs];
     __syncthreads();
 
     // Collaborative reduction
     for(int stride = bs; stride >= 1; stride /= 2) {
         if (ty < stride) {
-            partialSum[ty][tx] += partialSum[ty+ stride][tx];
-            partialSum[ty][bs + tx] += partialSum[ty+ stride][bs + tx];
+            partialSum[ty][tx] += partialSum[ty + stride][tx];
+            partialSum[ty][bs + tx] += partialSum[ty + stride][bs + tx];
         }
         __syncthreads();
     }
+
+    if (ty != 0) return;
     
     for(int stride = bs; stride >= 1; stride /= 2) {
         if (tx < stride) {
-            partialSum[ty][tx] += partialSum[ty][tx+ stride];
+            partialSum[ty][tx] += partialSum[ty][tx + stride];
         }
         __syncthreads();
     }
