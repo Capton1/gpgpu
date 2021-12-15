@@ -14,7 +14,3 @@ make
 ```sh
 ./main −i image.png−g image−GT.png
 ```
-
-```sh
-./main −i image.png−g image−GT.png
-```
