@@ -1,17 +1,20 @@
 # gpgpu
 
-### Benchmark
+### Compiling
 
-* CPU
-```
-real    0m0.306s
-user    0m0.277s
-sys     0m0.024s
+```sh
+mkdir build
+cd build
+cmake ..
+make
 ```
 
-* GPU
+### Run 
+
+```sh
+./main −i image.png−g image−GT.png
 ```
-real    0m0.198s
-user    0m0.093s
-sys     0m0.085s
+
+```sh
+./main −i image.png−g image−GT.png
 ```
