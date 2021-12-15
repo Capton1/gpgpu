@@ -155,9 +155,6 @@ FIBITMAP* post_processing(FIBITMAP *image, unsigned int postproc_size) {
         }
     }
 
-    FreeImage_Save(FIF_PNG, buffer, "../collective_database/buffer.png", 0);
-
-
 
     return new_image;
 }
@@ -240,16 +237,16 @@ void process_cpu(FIBITMAP *grey) {
     FIBITMAP* image_output = threshold(image_pp);
 
     if (DEBUG) {
-        FreeImage_Save(FIF_PNG, grey, "../collective_database/gray.png", 0);
-        FreeImage_Save(FIF_PNG, image_sobel_x, "../collective_database/sobel_x.png", 0);
-        FreeImage_Save(FIF_PNG, image_sobel_y, "../collective_database/sobel_y.png", 0);
-        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../collective_database/pool_sobel_x.png", 0);
-        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../collective_database/pool_sobel_y.png", 0);
-        FreeImage_Save(FIF_PNG, image_res, "../collective_database/res.png", 0);
-        FreeImage_Save(FIF_PNG, image_pp, "../collective_database/res_pp.png", 0);
+        FreeImage_Save(FIF_PNG, grey, "../output/gray.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_x, "../output/sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_y, "../output/sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../output/pool_sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../output/pool_sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_res, "../output/res.png", 0);
+        FreeImage_Save(FIF_PNG, image_pp, "../output/res_pp.png", 0);
     }
 
-    FreeImage_Save(FIF_PNG, image_output, "../collective_database/output.png", 0);
+    FreeImage_Save(FIF_PNG, image_output, "../output/output.png", 0);
 
     FreeImage_Unload(image_sobel_x);
     FreeImage_Unload(image_sobel_y);
@@ -323,16 +320,16 @@ void benchmark_cpu(FIBITMAP *grey) {
     printf("threshold():       %dms\n", t_elapsed);
 
     if (DEBUG) {
-        FreeImage_Save(FIF_PNG, grey, "../collective_database/gray.png", 0);
-        FreeImage_Save(FIF_PNG, image_sobel_x, "../collective_database/sobel_x.png", 0);
-        FreeImage_Save(FIF_PNG, image_sobel_y, "../collective_database/sobel_y.png", 0);
-        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../collective_database/pool_sobel_x.png", 0);
-        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../collective_database/pool_sobel_y.png", 0);
-        FreeImage_Save(FIF_PNG, image_res, "../collective_database/res.png", 0);
-        FreeImage_Save(FIF_PNG, image_pp, "../collective_database/res_pp.png", 0);
+        FreeImage_Save(FIF_PNG, grey, "../output/gray.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_x, "../output/sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_sobel_y, "../output/sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_x, "../output/pool_sobel_x.png", 0);
+        FreeImage_Save(FIF_PNG, image_pool_sobel_y, "../output/pool_sobel_y.png", 0);
+        FreeImage_Save(FIF_PNG, image_res, "../output/res.png", 0);
+        FreeImage_Save(FIF_PNG, image_pp, "../output/res_pp.png", 0);
     }
 
-    FreeImage_Save(FIF_PNG, image_output, "../collective_database/output.png", 0);
+    FreeImage_Save(FIF_PNG, image_output, "../output/output.png", 0);
 
     FreeImage_Unload(image_sobel_x);
     FreeImage_Unload(image_sobel_y);

@@ -7,20 +7,31 @@
 #include "utils.hpp"
 #include <FreeImage.h>
 
+#define POOLSIZE 32
 
 int main(int argc, char** argv) {
     (void) argc;
     (void) argv;
 
-    std::string filename = "../collective_database/test.png";
+    std::string filename = "";
+    std::string gt_filename = "";
     int benchmark = 0;
     std::string mode = "CPU";
 
     CLI::App app{"code"};
     app.add_option("-i", filename, "Input image");
+    app.add_option("-g", gt_filename, "Ground Truth image");
     app.add_set("-m", mode, {"GPU", "CPU"}, "Either 'GPU' or 'CPU'");
     app.add_flag("-b", benchmark, "Run benchmark");
+
+
     CLI11_PARSE(app, argc, argv);
+
+    if (filename == "" or gt_filename == "") {
+        printf("No input file or Ground Truth image\n");
+        printf("-i and -g must be specified \n");
+        return 1;
+    }
 
     const char *filename_c = filename.c_str();
     FREE_IMAGE_FORMAT formato = FreeImage_GetFileType(filename_c, 0);
@@ -58,7 +69,7 @@ int main(int argc, char** argv) {
         auto output_img = FreeImage_ConvertFromRawBits(output, output_width, output_height,
                                                         output_width, 8, 0, 0, 0);
 
-        FreeImage_Save(FIF_PNG, output_img, "../collective_database/output.png", 0);
+        FreeImage_Save(FIF_PNG, output_img, "../output/output.png", 0);
         free(output);
     }
 
@@ -68,17 +79,15 @@ int main(int argc, char** argv) {
 
     // Evaluate
 
-    formato = FreeImage_GetFileType("../collective_database/output.png", 0);
-    FIBITMAP *output = FreeImage_Load(formato, "../collective_database/output.png");
+    formato = FreeImage_GetFileType("../output/output.png", 0);
+    FIBITMAP *output = FreeImage_Load(formato, "../output/output.png");
     FIBITMAP *output_grey = FreeImage_ConvertToGreyscale(output);
 
-
-    //FIBITMAP *scaled_output = image_scaler(output_grey, POOLSIZE);
     FIBITMAP *scaled_output = FreeImage_Rescale(output_grey, width, height, FILTER_BILINEAR);
 
-    FreeImage_Save(FIF_PNG, scaled_output, "../collective_database/scaled_output.png", 0);
-    formato = FreeImage_GetFileType("../collective_database/test-GT.png", 0);
-    FIBITMAP *gt = FreeImage_Load(formato, "../collective_database/test-GT.png");
+    const char *gt_filename_c = gt_filename.c_str();
+    formato = FreeImage_GetFileType(gt_filename_c, 0);
+    FIBITMAP *gt = FreeImage_Load(formato, gt_filename_c);
     FIBITMAP *gt_grey = FreeImage_ConvertToGreyscale(gt);
     float iou = compute_IoU(gt_grey, scaled_output);
     printf("Metrics: IoU: %f\n", iou);
