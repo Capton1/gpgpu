@@ -17,4 +17,4 @@ void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
                 int pitchIn, int pitchOut);
 
 
-void process_image(const uint8_t* img, uint8_t *output, int width, int height);
+void process_image(const uint8_t* img, uint8_t *output, int width, int height, int stride);

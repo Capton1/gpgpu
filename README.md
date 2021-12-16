@@ -12,5 +12,5 @@ make
 ### Run 
 
 ```sh
-./main −i image.png−g image−GT.png
+./main −i image.png −g image−GT.png
 ```

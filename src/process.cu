@@ -260,10 +260,8 @@ void threshold(const uint8_t* devIn, uint8_t *devOut, int width, int height,
 }
 
 
-void process_image(const uint8_t* img, uint8_t *output, int width, int height) {
+void process_image(const uint8_t* img, uint8_t *output, int width, int height, int stride_input) {
     cudaError_t rc = cudaSuccess;
-
-    int stride_input = width * sizeof(uint8_t);
 
     // Allocate device memory
     uint8_t *devImg, *devSobelX, *devSobelY;
